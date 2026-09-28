@@ -1,6 +1,11 @@
 // The only layer that touches the DOM: one state object and a render().
 import { APP_NAME } from '../core';
-import { DEFAULT_TIGHTEN_THRESHOLD_DB, tighten, type Selection } from '../core/selection';
+import {
+  DEFAULT_TIGHTEN_THRESHOLD_DB,
+  tighten,
+  type SampleRange,
+  type Selection,
+} from '../core/selection';
 import { DecodeError, decodeSource, type Decoder, type Source } from '../core/source';
 import { waveformPeaks } from '../core/waveform';
 import './style.css';
@@ -9,7 +14,7 @@ interface Editing {
   /** None until the user drags one: there is no automatic guess at the sound. */
   selection: Selection | null;
   /** The samples the waveform shows: the whole Source, or zoomed to the Selection. */
-  view: Selection;
+  view: SampleRange;
   /** Earlier Selections, most recent last. */
   undo: (Selection | null)[];
   playing: boolean;
@@ -60,7 +65,7 @@ const decoders: Decoder[] = [nativeDecoder];
 
 function setState(next: State) {
   if (state.phase === 'ready' && (next.phase !== 'ready' || next.source !== state.source)) {
-    stopAudio();
+    silence();
   }
   const redraw = next.phase !== state.phase || viewOf(next) !== viewOf(state);
   state = next;
@@ -71,20 +76,20 @@ function setState(next: State) {
 const viewOf = (s: State) => (s.phase === 'ready' ? s.edit.view : undefined);
 
 /** Change the ready Source's editing state; a no-op in any other phase. */
-function edit(change: (edit: Editing, source: Source) => Partial<Editing>) {
+function updateEditing(change: (edit: Editing, source: Source) => Partial<Editing>) {
   if (state.phase !== 'ready') return;
   setState({ ...state, edit: { ...state.edit, ...change(state.edit, state.source) } });
 }
 
 /** Replace the Selection, remembering the old one for Undo. */
 function select(selection: Selection | null, before = currentSelection()) {
-  edit(({ undo }) => ({ selection, undo: [...undo, before] }));
+  updateEditing(({ undo }) => ({ selection, undo: [...undo, before] }));
   restartLoop();
 }
 
 const currentSelection = () => (state.phase === 'ready' ? state.edit.selection : null);
 
-const same = (a: Selection | null, b: Selection | null) =>
+const sameSelection = (a: Selection | null, b: Selection | null) =>
   a === b || (!!a && !!b && a.start === b.start && a.end === b.end);
 
 // Guards against a slow decode finishing after the user picked another file.
@@ -101,12 +106,11 @@ fileInput.addEventListener('change', async () => {
     // Read locally; the bytes never go anywhere but the decoder.
     const source = await decodeSource(await file.arrayBuffer(), decoders);
     if (pick !== latestPick) return;
-    const whole = { start: 0, end: source.samples.length };
     setState({
       phase: 'ready',
       fileName: file.name,
       source,
-      edit: { selection: null, view: whole, undo: [], playing: false },
+      edit: { selection: null, view: wholeOf(source), undo: [], playing: false },
     });
   } catch (e) {
     if (pick !== latestPick) return;
@@ -154,7 +158,7 @@ waveform.addEventListener('pointermove', (e) => {
   const at = sampleAt(e.clientX);
   if (at === drag.anchor) return;
   const selection = { start: Math.min(at, drag.anchor), end: Math.max(at, drag.anchor) };
-  edit(() => ({ selection }));
+  updateEditing(() => ({ selection }));
 });
 
 function endDrag(e: PointerEvent) {
@@ -162,18 +166,21 @@ function endDrag(e: PointerEvent) {
   const { before } = drag;
   drag = undefined;
   const after = currentSelection();
-  if (e.type === 'pointercancel') edit(() => ({ selection: before }));
-  else if (!same(before, after)) select(after, before);
+  if (e.type === 'pointercancel') updateEditing(() => ({ selection: before }));
+  else if (!sameSelection(before, after)) select(after, before);
 }
 waveform.addEventListener('pointerup', endDrag);
 waveform.addEventListener('pointercancel', endDrag);
 
-// Keyboard: arrows nudge the focused handle by 10 ms, Shift for 100 ms.
+// Keyboard: arrows nudge the focused handle, Shift for a bigger step.
+const NUDGE_SECONDS = 0.01;
+const SHIFT_NUDGE_SECONDS = 0.1;
+
 for (const [edge, handle] of Object.entries(handles) as ['start' | 'end', HTMLElement][]) {
   handle.addEventListener('keydown', (e) => {
     const selection = currentSelection();
     if (state.phase !== 'ready' || !selection) return;
-    const step = Math.round(state.source.sampleRate * (e.shiftKey ? 0.1 : 0.01));
+    const step = Math.round(state.source.sampleRate * (e.shiftKey ? SHIFT_NUDGE_SECONDS : NUDGE_SECONDS));
     const delta = e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -step
       : e.key === 'ArrowRight' || e.key === 'ArrowUp' ? step
       : 0;
@@ -184,7 +191,7 @@ for (const [edge, handle] of Object.entries(handles) as ['start' | 'end', HTMLEl
       edge === 'start'
         ? { ...selection, start: clamp(selection.start + delta, 0, selection.end - 1) }
         : { ...selection, end: clamp(selection.end + delta, selection.start + 1, state.source.samples.length) };
-    if (!same(next, selection)) select(next);
+    if (!sameSelection(next, selection)) select(next);
   });
 }
 
@@ -196,7 +203,7 @@ tightenButton.addEventListener('click', () => {
   const next = tighten(state.source.samples, state.source.sampleRate, selection, {
     thresholdDb: thresholdDb(),
   });
-  if (!same(next, selection)) select(next);
+  if (!sameSelection(next, selection)) select(next);
 });
 
 /** The threshold input, or the default when it is empty or out of range. */
@@ -207,7 +214,7 @@ function thresholdDb(): number {
 }
 
 undoButton.addEventListener('click', () => {
-  edit(({ undo }) => ({ selection: undo.at(-1) ?? null, undo: undo.slice(0, -1) }));
+  updateEditing(({ undo }) => ({ selection: undo.at(-1) ?? null, undo: undo.slice(0, -1) }));
   restartLoop();
 });
 
@@ -215,20 +222,21 @@ undoButton.addEventListener('click', () => {
 const ZOOM_MARGIN = 0.25;
 
 zoomButton.addEventListener('click', () => {
-  edit(({ selection, view }, source) => {
-    const whole = { start: 0, end: source.samples.length };
-    if (!selection || isZoomed(view, source)) return { view: whole };
+  updateEditing(({ selection, view }, source) => {
+    if (!selection || isZoomed(view, source)) return { view: wholeOf(source) };
     const margin = Math.ceil((selection.end - selection.start) * ZOOM_MARGIN);
     return {
       view: {
         start: Math.max(0, selection.start - margin),
-        end: Math.min(whole.end, selection.end + margin),
+        end: Math.min(source.samples.length, selection.end + margin),
       },
     };
   });
 });
 
-const isZoomed = (view: Selection, source: Source) =>
+const wholeOf = (source: Source): SampleRange => ({ start: 0, end: source.samples.length });
+
+const isZoomed = (view: SampleRange, source: Source) =>
   view.start > 0 || view.end < source.samples.length;
 
 // Loop playback of the Selection. One AudioContext for the page, created on the
@@ -237,7 +245,7 @@ const isZoomed = (view: Selection, source: Source) =>
 
 let audio: AudioContext | undefined;
 let loop:
-  | { node: AudioBufferSourceNode; buffer: AudioBuffer; startedAt: number; selection: Selection }
+  | { node: AudioBufferSourceNode; startedAt: number; selection: Selection; frame: number }
   | undefined;
 const buffers = new WeakMap<Source, AudioBuffer>();
 
@@ -249,7 +257,7 @@ playButton.addEventListener('click', () => {
   }
   audio ??= new AudioContext();
   void audio.resume();
-  edit(() => ({ playing: true }));
+  updateEditing(() => ({ playing: true }));
   restartLoop();
 });
 
@@ -257,7 +265,7 @@ function restartLoop() {
   if (state.phase !== 'ready' || !state.edit.playing || !audio) return;
   const { source } = state;
   const selection = state.edit.selection;
-  stopAudio();
+  silence();
   if (!selection) {
     stopLoop();
     return;
@@ -276,37 +284,44 @@ function restartLoop() {
   node.loopEnd = selection.end / source.sampleRate;
   node.connect(audio.destination);
   node.start(0, node.loopStart);
-  loop = { node, buffer, startedAt: audio.currentTime, selection };
-  requestAnimationFrame(movePlayhead);
+  loop = { node, startedAt: audio.currentTime, selection, frame: requestAnimationFrame(movePlayhead) };
 }
 
-function stopAudio() {
-  loop?.node.stop();
+/** Stop the sound and the playhead, leaving `playing` as is for restartLoop(). */
+function silence() {
+  if (loop) {
+    loop.node.stop();
+    cancelAnimationFrame(loop.frame);
+    playhead.hidden = true;
+  }
   loop = undefined;
 }
 
+/** Stop playing, as the Stop button does. */
 function stopLoop() {
-  stopAudio();
-  if (state.phase === 'ready' && state.edit.playing) edit(() => ({ playing: false }));
+  silence();
+  if (state.phase === 'ready' && state.edit.playing) updateEditing(() => ({ playing: false }));
 }
 
 function movePlayhead() {
-  if (!loop || !audio || state.phase !== 'ready') {
-    playhead.hidden = true;
-    return;
-  }
-  const { sampleRate } = loop.buffer;
+  if (!loop || !audio || state.phase !== 'ready') return;
+  const { sampleRate } = state.source;
   const length = loop.selection.end - loop.selection.start;
   const elapsed = Math.max(0, (audio.currentTime - loop.startedAt) * sampleRate);
   placeAt(playhead, loop.selection.start + (elapsed % length));
-  requestAnimationFrame(movePlayhead);
+  loop.frame = requestAnimationFrame(movePlayhead);
+}
+
+/** Where a Source sample falls across the view: 0 at its left edge, 1 at its right. */
+function viewFraction(sample: number): number {
+  if (state.phase !== 'ready') return 0;
+  const { view } = state.edit;
+  return (sample - view.start) / (view.end - view.start);
 }
 
 /** Put an element's left edge at a Source sample; hide it outside the view. */
 function placeAt(element: HTMLElement, sample: number) {
-  if (state.phase !== 'ready') return;
-  const { view } = state.edit;
-  const fraction = (sample - view.start) / (view.end - view.start);
+  const fraction = viewFraction(sample);
   element.hidden = fraction < 0 || fraction > 1;
   element.style.left = `${fraction * 100}%`;
 }
@@ -340,12 +355,11 @@ function renderSelection(source: Source, { selection, view, undo, playing }: Edi
     : 'Drag across the waveform to select the sound.';
 
   if (selection) {
-    const left = clamp(selection.start, view.start, view.end);
-    const right = clamp(selection.end, view.start, view.end);
-    const span = view.end - view.start;
+    const left = clamp(viewFraction(selection.start), 0, 1);
+    const right = clamp(viewFraction(selection.end), 0, 1);
     selectionBox.hidden = right <= left;
-    selectionBox.style.left = `${((left - view.start) / span) * 100}%`;
-    selectionBox.style.width = `${((right - left) / span) * 100}%`;
+    selectionBox.style.left = `${left * 100}%`;
+    selectionBox.style.width = `${(right - left) * 100}%`;
     for (const edge of ['start', 'end'] as const) {
       const handle = handles[edge];
       placeAt(handle, selection[edge]);

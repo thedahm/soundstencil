@@ -2,10 +2,12 @@
 // tattoo. Nothing here guesses one; the user always makes the first Selection.
 
 /** A range of Source samples, `start` inclusive and `end` exclusive. */
-export interface Selection {
+export interface SampleRange {
   start: number;
   end: number;
 }
+
+export type Selection = SampleRange;
 
 export interface TightenOptions {
   /** How far below the Selection's peak still counts as sound. */
@@ -20,7 +22,8 @@ const DEFAULT_WINDOW_SECONDS = 0.01;
 /**
  * Tighten: move the Selection's edges inward to the first and last short
  * windows whose RMS is within `thresholdDb` of the loudest window in the
- * Selection. Edges snap outward to window boundaries, so the sound's onset and
+ * Selection. The reference is that window's RMS, not the sample peak, so the
+ * threshold compares like with like however spiky the attack is. Edges snap outward to window boundaries, so the sound's onset and
  * tail are kept whole. Only ever narrows; a silent Selection comes back as is.
  */
 export function tighten(
