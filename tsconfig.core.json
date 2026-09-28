@@ -1,0 +1,10 @@
+{
+  // The pure pipeline. No DOM lib, so any document/window/HTMLElement use in
+  // src/core fails to typecheck. The UI (tsconfig.json) is the only DOM consumer.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": []
+  },
+  "include": ["src/core"]
+}
