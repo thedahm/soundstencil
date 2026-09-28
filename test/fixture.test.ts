@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { tighten } from '../src/core/selection';
 import { decodeSource } from '../src/core/source';
 import { waveformPeaks } from '../src/core/waveform';
 import { wavDecoder } from './fixtures/wav';
@@ -29,5 +30,30 @@ describe('bark.wav fixture', () => {
     expect(loudest).toBeLessThan(40); // 0.40 s, the attack
     expect(Math.max(...loudness.slice(0, 20))).toBeLessThan(0.02);
     expect(Math.max(...loudness.slice(-10))).toBeLessThan(0.02);
+  });
+
+  it('tightens from the whole file to the bark', async () => {
+    const source = await decodeSource(bytes(), [wavDecoder]);
+    const seconds = (thresholdDb?: number) => {
+      const { start, end } = tighten(
+        source.samples,
+        source.sampleRate,
+        { start: 0, end: source.samples.length },
+        { thresholdDb },
+      );
+      return { start: start / source.sampleRate, end: end / source.sampleRate };
+    };
+
+    // The README puts the bark at about 0.25 s to 0.65 s. The default −30 dB,
+    // measured against the clipped attack, lets the quiet end of the tail go.
+    const byDefault = seconds();
+    expect(byDefault.start).toBeCloseTo(0.25, 1);
+    expect(byDefault.end).toBeGreaterThan(0.4);
+    expect(byDefault.end).toBeLessThan(0.6);
+
+    // A lower threshold keeps the whole tail.
+    const lenient = seconds(-50);
+    expect(lenient.start).toBeCloseTo(0.25, 1);
+    expect(lenient.end).toBeCloseTo(0.65, 1);
   });
 });
