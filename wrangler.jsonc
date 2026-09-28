@@ -6,10 +6,15 @@
   // The subdomain is the only public origin. No workers.dev hostname serving duplicate content.
   "workers_dev": false,
   "routes": [
-    { "pattern": "soundstencil.dominichanzely.com", "custom_domain": true }
+    // previews_enabled serves `npx wrangler preview` builds (one per branch) at
+    // <branch>.soundstencil.dominichanzely.com. Cloudflare provisions the wildcard
+    // DNS record and certificate on the first preview.
+    { "pattern": "soundstencil.dominichanzely.com", "custom_domain": true, "previews_enabled": true }
   ],
   "assets": {
     // Vite build output. public/_headers lands here and sets the CSP.
     "directory": "./dist/"
-  }
+  },
+  // Required by `wrangler preview`. Empty: previews use the same assets and settings.
+  "previews": {}
 }
