@@ -9,9 +9,28 @@
   </head>
   <body>
     <main id="app">
-      <h1>soundstencil</h1>
-      <p>Turn a voice or bark clip into a stencil-ready soundwave tattoo SVG.</p>
-      <p>Coming soon.</p>
+      <header class="intro">
+        <h1>soundstencil</h1>
+        <p>Turn a voice or bark clip into a stencil-ready soundwave tattoo SVG.</p>
+      </header>
+      <div class="panes">
+        <section class="pane" aria-labelledby="sound-heading">
+          <h2 id="sound-heading">Sound</h2>
+          <label class="button">
+            Choose a video or audio file
+            <input id="file" type="file" accept="video/*,audio/*" />
+          </label>
+          <p id="status" class="status" role="status"></p>
+          <p id="error" class="error" role="alert" hidden></p>
+          <div id="waveform" class="waveform" hidden>
+            <canvas aria-label="Waveform of the whole file" role="img"></canvas>
+          </div>
+        </section>
+        <section class="pane" aria-labelledby="preview-heading">
+          <h2 id="preview-heading">Preview</h2>
+          <p class="placeholder">Your stencil will appear here.</p>
+        </section>
+      </div>
     </main>
     <footer>
       Runs entirely in your browser. Your file never leaves your device. No accounts, no analytics.
