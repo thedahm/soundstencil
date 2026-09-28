@@ -1,4 +1,4 @@
-// The UI: one state object and a render(). The only layer that touches the DOM.
+// The only layer that touches the DOM. Grows into one state object and a render().
 import { APP_NAME } from '../core';
 import './style.css';
 

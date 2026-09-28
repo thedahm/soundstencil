@@ -6,7 +6,7 @@ Pick a video or audio file, select the sound, choose a style, and export a black
 
 Status: in development. Spec and tickets in [issue #1](https://github.com/thedahm/soundstencil/issues/1).
 
-Lives at `soundstencil.dominichanzely.com`.
+Deploys to `soundstencil.dominichanzely.com` once Workers Builds is connected (see Deploy).
 
 ## Develop
 
@@ -22,7 +22,7 @@ npm run build      # typecheck + Vite build to dist/
 
 ## Privacy
 
-No analytics, no external fonts, no requests to any other origin. The Content-Security-Policy in [`public/_headers`](public/_headers) enforces that: `default-src 'self'`, plus only `blob:` (decoded media, downloads) and `'wasm-unsafe-eval'` (WebAssembly). `curl -I https://soundstencil.dominichanzely.com` shows it.
+No analytics, no external fonts, no requests to any other origin. The Content-Security-Policy in [`public/_headers`](public/_headers) enforces that: `default-src 'self'`, plus only `blob:` (decoded media, downloads) and `'wasm-unsafe-eval'` (WebAssembly). `curl -I https://soundstencil.dominichanzely.com` shows it. The ffmpeg fallback will add exactly one more: the pinned jsDelivr `@ffmpeg/core` URL, fetched only when the browser can't decode a file (ADR-0001).
 
 ## Deploy
 
