@@ -22,12 +22,12 @@ const canvas = $<HTMLCanvasElement>('#waveform canvas');
 
 app.dataset.app = APP_NAME;
 
-let audioContext: AudioContext | undefined;
-
-/** The browser's own decoder. Resamples to the AudioContext's rate. */
+/**
+ * The browser's own decoder. An OfflineAudioContext decodes without needing a
+ * user gesture or claiming the device's audio output; it resamples to its rate.
+ */
 const nativeDecoder: Decoder = async (bytes) => {
-  audioContext ??= new AudioContext();
-  const buffer = await audioContext.decodeAudioData(bytes);
+  const buffer = await new OfflineAudioContext(1, 1, 48000).decodeAudioData(bytes);
   const channels = Array.from({ length: buffer.numberOfChannels }, (_, i) =>
     buffer.getChannelData(i),
   );
@@ -43,22 +43,24 @@ function setState(next: State) {
 }
 
 // Guards against a slow decode finishing after the user picked another file.
-let pick = 0;
+let latestPick = 0;
 
 fileInput.addEventListener('change', async () => {
   const file = fileInput.files?.[0];
+  // Clear so picking the same file again (say, after an error) still fires change.
+  fileInput.value = '';
   if (!file) return;
-  const thisPick = ++pick;
+  const pick = ++latestPick;
   setState({ phase: 'decoding', fileName: file.name });
   try {
     // Read locally; the bytes never go anywhere but the decoder.
     const source = await decodeSource(await file.arrayBuffer(), decoders);
-    if (thisPick === pick) setState({ phase: 'ready', fileName: file.name, source });
+    if (pick === latestPick) setState({ phase: 'ready', fileName: file.name, source });
   } catch (e) {
-    if (thisPick !== pick) return;
-    if (!(e instanceof DecodeError)) console.error(e);
-    const message =
-      e instanceof DecodeError ? e.message : "Something went wrong reading this file. Try another.";
+    if (pick !== latestPick) return;
+    let message = "Something went wrong reading this file. Try another.";
+    if (e instanceof DecodeError) message = e.message;
+    else console.error(e);
     setState({ phase: 'error', fileName: file.name, message });
   }
 });

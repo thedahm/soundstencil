@@ -65,6 +65,18 @@ describe('decodeSource', () => {
     expect(seen).toEqual([4, 4]);
   });
 
+  it('hands the last decoder the original bytes, so a large video is not held twice', async () => {
+    const original = bytes();
+    let given: ArrayBuffer | undefined;
+    await decodeSource(original, [
+      async (b) => {
+        given = b;
+        return stereo;
+      },
+    ]);
+    expect(given).toBe(original);
+  });
+
   it('fails with a friendly DecodeError when no decoder can read the file', async () => {
     const attempt = decodeSource(bytes(), [
       async () => {

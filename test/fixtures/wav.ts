@@ -1,5 +1,4 @@
-import { readFileSync } from 'node:fs';
-import type { DecodedAudio } from '../../src/core/source';
+import type { DecodedAudio, Decoder } from '../../src/core/source';
 
 /**
  * Minimal 16-bit PCM WAV reader, standing in for decodeAudioData() in tests.
@@ -41,7 +40,5 @@ export function readWav(bytes: ArrayBuffer): DecodedAudio {
   throw new Error('WAV has no data chunk');
 }
 
-export function readWavFile(path: string | URL): DecodedAudio {
-  const file = readFileSync(path);
-  return readWav(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength));
-}
+/** readWav as a Decoder, in place of the browser's decodeAudioData(). */
+export const wavDecoder: Decoder = async (bytes) => readWav(bytes);
