@@ -5,6 +5,10 @@
   "compatibility_date": "2026-09-28",
   // The subdomain is the only public origin. No workers.dev hostname serving duplicate content.
   "workers_dev": false,
+  // Branch previews (`npx wrangler preview` from Workers Builds) at
+  // <branch>-soundstencil.<account>.workers.dev. Cloudflare adds X-Robots-Tag: noindex
+  // there. Set explicitly so a production deploy can't flip the dashboard toggle.
+  "preview_urls": true,
   "routes": [
     // previews_enabled serves `npx wrangler preview` builds (one per branch) at
     // <branch>.soundstencil.dominichanzely.com. Cloudflare provisions the wildcard
