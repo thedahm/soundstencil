@@ -33,6 +33,9 @@ Cloudflare Workers with static assets and no Worker script, deployed by Workers 
 | Production branch | `main` | dashboard |
 | Build command | `npm ci && npm run build` | dashboard |
 | Deploy command | `npx wrangler deploy` | dashboard |
+| Non-production branch builds | enabled | dashboard |
+| Non-production branch deploy command | `npx wrangler preview` | dashboard |
+| Branch previews | `<branch>-soundstencil.thedahm.workers.dev` (`preview_urls`, `previews: {}`); also `<branch>.soundstencil.dominichanzely.com` once `previews_enabled` on the route reaches production | `wrangler.jsonc` |
 | Root directory | (repo root) | dashboard |
 | Build watch paths | include `src/*`, `public/*`, `index.html`, `package.json`, `package-lock.json`, `tsconfig*.json`, `wrangler.jsonc`, `.node-version` | dashboard |
 | Node version | `.node-version` | repo |

@@ -76,10 +76,15 @@ describe('wrangler.jsonc', () => {
     expect(config.assets.directory).toBe('./dist/');
   });
 
-  it('is reachable only at the custom domain', () => {
+  it('serves production only at the custom domain, with branch previews enabled', () => {
     expect(config.workers_dev).toBe(false);
+    expect(config.preview_urls).toBe(true);
     expect(config.routes).toEqual([
-      { pattern: 'soundstencil.dominichanzely.com', custom_domain: true },
+      { pattern: 'soundstencil.dominichanzely.com', custom_domain: true, previews_enabled: true },
     ]);
+  });
+
+  it('can run `wrangler preview`', () => {
+    expect(config.previews).toEqual({});
   });
 });

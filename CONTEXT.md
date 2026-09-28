@@ -7,7 +7,7 @@ Turns a short sound (a dog's bark, a voice) pulled from a video or audio file in
 ### Sound
 
 **Source**:
-The video or audio file the user picks, decoded to samples in the browser. Never uploaded.
+The video or audio file the user picks, decoded in the browser to mono samples (channels averaged). Never uploaded.
 _Avoid_: upload, input, recording
 
 **Selection**:
