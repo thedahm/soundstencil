@@ -1,0 +1,15 @@
+{
+  // Static assets only. No Worker script: the app is client-only and the Source
+  // never leaves the device.
+  "name": "soundstencil",
+  "compatibility_date": "2026-09-28",
+  // The subdomain is the only public origin. No workers.dev hostname serving duplicate content.
+  "workers_dev": false,
+  "routes": [
+    { "pattern": "soundstencil.dominichanzely.com", "custom_domain": true }
+  ],
+  "assets": {
+    // Vite build output. public/_headers lands here and sets the CSP.
+    "directory": "./dist/"
+  }
+}
