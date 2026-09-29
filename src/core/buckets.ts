@@ -2,6 +2,7 @@
 // turned into heights at Print Size. Every Style draws from the same Buckets.
 import type { PrintSize } from './print-size';
 import type { Selection } from './selection';
+import { DEFAULT_THIN_SPOT_MM } from './thin-spots';
 
 export type Reduction = 'peak' | 'rms';
 
@@ -48,8 +49,8 @@ export function buckets(
 export const MIN_GAMMA = 0.3;
 export const MAX_GAMMA = 1;
 export const DEFAULT_GAMMA = 0.6;
-/** The minimum height floor. Matches the default Thin Spot threshold. */
-export const DEFAULT_FLOOR_MM = 1;
+/** The minimum height floor: the default Thin Spot threshold. */
+export const DEFAULT_FLOOR_MM = DEFAULT_THIN_SPOT_MM;
 
 export interface CompressionOptions {
   /** γ in h = v^γ, clamped to MIN_GAMMA..MAX_GAMMA. Lower lifts quiet Buckets more. */
