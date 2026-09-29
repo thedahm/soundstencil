@@ -73,6 +73,25 @@ export function stencilSvg(d: string, printSize: PrintSize): string {
 }
 
 /**
+ * The Stencil SVG for the browser to rasterize: sized in whole pixels, the mm
+ * viewBox stretched to fill them exactly, and optionally white behind the ink.
+ */
+export function rasterSvg(
+  d: string,
+  { widthMm, heightMm }: PrintSize,
+  { width, height }: { width: number; height: number },
+  white: boolean,
+): string {
+  const [w, h] = [mm(widthMm), mm(heightMm)];
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" ` +
+    `viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">` +
+    (white ? `<rect width="${w}" height="${h}" fill="#fff"/>` : '') +
+    `<path fill="#000" d="${d}"/></svg>\n`
+  );
+}
+
+/**
  * The Editable SVG: the Line's centerline as a black stroke on the same canvas,
  * for an artist to restyle. Not stencil-ready.
  */
@@ -83,10 +102,12 @@ export function editableSvg(d: string, printSize: PrintSize, thicknessMm: number
   );
 }
 
+/** Like `soundstencil-line-80x25mm.png`: what every download is called. */
+export const fileName = (name: string, { widthMm, heightMm }: PrintSize, extension: 'svg' | 'png') =>
+  `soundstencil-${name}-${mm(widthMm)}x${mm(heightMm)}mm.${extension}`;
+
 /** Like `soundstencil-bars-80x25mm.svg`. */
-export const stencilFileName = (style: StyleName, { widthMm, heightMm }: PrintSize) =>
-  `soundstencil-${style}-${mm(widthMm)}x${mm(heightMm)}mm.svg`;
+export const stencilFileName = (style: StyleName, printSize: PrintSize) => fileName(style, printSize, 'svg');
 
 /** Like `soundstencil-line-editable-80x25mm.svg`. */
-export const editableFileName = ({ widthMm, heightMm }: PrintSize) =>
-  `soundstencil-line-editable-${mm(widthMm)}x${mm(heightMm)}mm.svg`;
+export const editableFileName = (printSize: PrintSize) => fileName('line-editable', printSize, 'svg');

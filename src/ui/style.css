@@ -259,14 +259,15 @@ p {
   accent-color: var(--accent);
 }
 
-.field input[type='radio'] {
+.field input[type='radio'],
+.field input[type='checkbox'] {
   width: auto;
   min-height: 0;
   margin: 0;
   accent-color: var(--accent);
 }
 
-.field:has(input[type='radio']) {
+.field:has(input[type='radio'], input[type='checkbox']) {
   color: var(--fg);
 }
 
