@@ -23,3 +23,21 @@ jobs:
       - run: npm run build
       - name: CSP headers ship in dist/
         run: cmp public/_headers dist/_headers
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium webkit
+      # Builds dist/ and serves it with `vite preview` (playwright.config.ts).
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-test-results
+          path: test-results/
