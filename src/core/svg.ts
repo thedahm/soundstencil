@@ -17,7 +17,9 @@ export function barsPath(bars: readonly Bar[]): string {
   return bars
     .map(({ x, y, width, height, radius: r }) => {
       const [left, top, right, bottom] = [x, y, x + width, y + height].map(mm);
-      if (r <= 0) return `M${left} ${top}H${right}V${bottom}H${left}Z`;
+      // Too short to draw at this precision (only possible with a 0 floor).
+      if (top === bottom) return '';
+      if (r <= 0)return `M${left} ${top}H${right}V${bottom}H${left}Z`;
       const arc = (toX: number, toY: number) => `A${mm(r)} ${mm(r)} 0 0 1 ${mm(toX)} ${mm(toY)}`;
       const [innerLeft, innerRight] = [mm(x + r), mm(x + width - r)];
       const [innerTop, innerBottom] = [mm(y + r), mm(y + height - r)];

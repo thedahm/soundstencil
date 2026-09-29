@@ -10,7 +10,7 @@ import { DecodeError, decodeSource, type Decoder, type Source } from '../core/so
 import { DEFAULT_FILL_RATIO, DEFAULT_ROUNDING } from '../core/bars';
 import { DEFAULT_BUCKETS, DEFAULT_FLOOR_MM, DEFAULT_GAMMA } from '../core/buckets';
 import { DEFAULT_PRINT_SIZE } from '../core/print-size';
-import { barsStencil, type Design } from '../core/stencil';
+import { barsStencil, type Design, type Stencil } from '../core/stencil';
 import { mm } from '../core/svg';
 import { waveformPeaks } from '../core/waveform';
 import './style.css';
@@ -250,11 +250,26 @@ function design(): Design {
   };
 }
 
-/** The Stencil for the current Selection and controls, if there is a Selection. */
-function currentStencil() {
+let lastStencil: { source: Source; selection: Selection; design: string; stencil: Stencil } | undefined;
+
+/**
+ * The Stencil for the current Selection and controls, if there is a Selection.
+ * Remembered, since render() runs on every pointermove and most don't change it.
+ */
+function currentStencil(): Stencil | undefined {
   const selection = currentSelection();
   if (state.phase !== 'ready' || !selection) return undefined;
-  return barsStencil(state.source.samples, selection, design());
+  const { source } = state;
+  const settings = design();
+  const key = JSON.stringify(settings);
+  if (
+    lastStencil?.source !== source ||
+    !sameSelection(lastStencil.selection, selection) ||
+    lastStencil.design !== key
+  ) {
+    lastStencil = { source, selection, design: key, stencil: barsStencil(source.samples, selection, settings) };
+  }
+  return lastStencil.stencil;
 }
 
 designForm.addEventListener('input', render);
@@ -268,8 +283,8 @@ downloadButton.addEventListener('click', () => {
   link.href = url;
   link.download = stencil.fileName;
   link.click();
-  // Some browsers start the download after click() returns.
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  // Some browsers start the download well after click() returns.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 });
 
 undoButton.addEventListener('click', () => {
@@ -401,6 +416,9 @@ function render() {
   renderPreview();
 }
 
+/** The markup in the preview, so an unchanged Stencil isn't re-parsed. */
+let shownSvg = '';
+
 function renderPreview() {
   for (const output of designForm.querySelectorAll('output')) {
     const input = designInputs[output.htmlFor.value as keyof typeof designInputs];
@@ -411,7 +429,8 @@ function renderPreview() {
   previewPlaceholder.hidden = !!stencil;
   downloadButton.disabled = !stencil;
   // Our own markup, built from numbers only.
-  preview.innerHTML = stencil?.svg ?? '';
+  const svg = stencil?.svg ?? '';
+  if (svg !== shownSvg) preview.innerHTML = shownSvg = svg;
   barInfo.textContent = stencil
     ? `Bars ${mm(stencil.geometry.barWidthMm)} mm wide, ${mm(stencil.geometry.gapMm)} mm apart`
     : '';

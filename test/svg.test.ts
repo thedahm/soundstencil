@@ -18,6 +18,15 @@ describe('barsPath', () => {
     expect(d.match(/A/g)).toHaveLength(8);
   });
 
+  it('leaves out bars with no height', () => {
+    expect(
+      barsPath([
+        { x: 0, y: 5, width: 1, height: 0, radius: 0 },
+        { x: 2, y: 5, width: 1, height: 0.001, radius: 0 },
+      ]),
+    ).toBe('');
+  });
+
   it('writes coordinates at 0.01 mm precision', () => {
     const d = barsPath([{ x: 1 / 3, y: 2 / 3, width: 1.0084, height: 10.005, radius: 0 }]);
     expect(d).toBe('M0.33 0.67H1.34V10.67H0.33Z');
