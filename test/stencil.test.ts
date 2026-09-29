@@ -10,7 +10,7 @@ import { wavDecoder } from './fixtures/wav';
 const bark = async () => {
   const file = readFileSync(new URL('./fixtures/bark.wav', import.meta.url));
   const source = await decodeSource(
-    file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength),
+    async () => file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength),
     [wavDecoder],
   );
   const selection = tighten(source.samples, source.sampleRate, {

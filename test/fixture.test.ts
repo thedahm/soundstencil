@@ -5,21 +5,21 @@ import { decodeSource } from '../src/core/source';
 import { waveformPeaks } from '../src/core/waveform';
 import { wavDecoder } from './fixtures/wav';
 
-const bytes = () => {
+const bytes = async () => {
   const file = readFileSync(new URL('./fixtures/bark.wav', import.meta.url));
   return file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength);
 };
 
 describe('bark.wav fixture', () => {
   it('decodes to a 0.8 s mono Source at 48 kHz', async () => {
-    const source = await decodeSource(bytes(), [wavDecoder]);
+    const source = await decodeSource(bytes, [wavDecoder]);
     expect(source.sampleRate).toBe(48000);
     expect(source.samples.length).toBe(38400);
     expect(source.duration).toBeCloseTo(0.8);
   });
 
   it('has one loud bark in the middle and near-silence at both ends', async () => {
-    const source = await decodeSource(bytes(), [wavDecoder]);
+    const source = await decodeSource(bytes, [wavDecoder]);
     // 80 columns of 10 ms each.
     const { min, max } = waveformPeaks(source.samples, 80);
     const loudness = Array.from(max, (hi, i) => Math.max(hi, -min[i]!));
@@ -33,7 +33,7 @@ describe('bark.wav fixture', () => {
   });
 
   it('tightens from the whole file to the bark', async () => {
-    const source = await decodeSource(bytes(), [wavDecoder]);
+    const source = await decodeSource(bytes, [wavDecoder]);
     const seconds = (thresholdDb?: number) => {
       const { start, end } = tighten(
         source.samples,

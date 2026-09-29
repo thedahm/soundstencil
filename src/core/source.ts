@@ -29,19 +29,20 @@ export class DecodeError extends Error {
 /**
  * Try each decoder in order and return the first success as a mono Source.
  * decodeAudioData() detaches the buffer it is given, even when it fails, so
- * every decoder but the last gets a copy. The last gets the original, so the
- * usual single-decoder case never holds a large video in memory twice.
+ * each decoder gets the file read afresh. Reading again rather than copying up
+ * front means the usual case, native decode succeeding, never holds a large
+ * video in memory twice.
  */
 export async function decodeSource(
-  bytes: ArrayBuffer,
+  read: () => Promise<ArrayBuffer>,
   decoders: readonly Decoder[],
   { phone = false }: { phone?: boolean } = {},
 ): Promise<Source> {
   let decoded: DecodedAudio | undefined;
   const failures: unknown[] = [];
-  for (const [i, decode] of decoders.entries()) {
+  for (const decode of decoders) {
     try {
-      decoded = await decode(i === decoders.length - 1 ? bytes : bytes.slice(0));
+      decoded = await decode(await read());
       break;
     } catch (error) {
       failures.push(error);

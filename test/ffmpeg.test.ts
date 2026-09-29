@@ -30,6 +30,8 @@ function fakeTranscoder(wav = new Uint8Array([82, 73, 70, 70]), exitCode = 0) {
 
 const decoded = { sampleRate: 44100, channels: [new Float32Array(4)] };
 const bytes = () => new Uint8Array([1, 2, 3]).buffer;
+const decoderFor = (transcoder: Transcoder) =>
+  ffmpegDecoder({ load: async () => transcoder, decodeWav: async () => decoded });
 
 describe('FFMPEG_CORE_URL', () => {
   it('pins the single-threaded core on jsDelivr to an exact version', () => {
@@ -60,13 +62,13 @@ describe('ffmpegDecoder', () => {
 
   it('gives ffmpeg the file bytes', async () => {
     const { transcoder, written } = fakeTranscoder();
-    await ffmpegDecoder({ load: async () => transcoder, decodeWav: async () => decoded })(bytes());
+    await decoderFor(transcoder)(bytes());
     expect(Array.from(written[0]!)).toEqual([1, 2, 3]);
   });
 
   it('removes its files afterwards, so the next Source starts clean', async () => {
     const { transcoder, files } = fakeTranscoder();
-    await ffmpegDecoder({ load: async () => transcoder, decodeWav: async () => decoded })(bytes());
+    await decoderFor(transcoder)(bytes());
     expect(files.size).toBe(0);
   });
 
@@ -90,9 +92,26 @@ describe('ffmpegDecoder', () => {
     await expect(decode(bytes())).resolves.toBe(decoded);
   });
 
+  it('runs one file at a time, so a second pick never clobbers the first', async () => {
+    const { transcoder } = fakeTranscoder();
+    const busy: boolean[] = [];
+    let running = false;
+    const exec = transcoder.exec;
+    transcoder.exec = async (args) => {
+      busy.push(running);
+      running = true;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      running = false;
+      return exec(args);
+    };
+    const decode = decoderFor(transcoder);
+    await Promise.all([decode(bytes()), decode(bytes())]);
+    expect(busy).toEqual([false, false]);
+  });
+
   it('fails when ffmpeg exits with an error', async () => {
     const { transcoder, files } = fakeTranscoder(undefined, 1);
-    const decode = ffmpegDecoder({ load: async () => transcoder, decodeWav: async () => decoded });
+    const decode = decoderFor(transcoder);
     await expect(decode(bytes())).rejects.toThrow();
     expect(files.size).toBe(0);
   });

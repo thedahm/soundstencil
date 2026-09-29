@@ -1,6 +1,6 @@
-// Starts ffmpeg.wasm for the fallback decoder (ADR-0001). Imported dynamically,
-// only once native decode has failed, so the wrapper stays out of the main
-// bundle and the GPL core is downloaded from its pinned URL, never shipped.
+// Starts ffmpeg.wasm for the fallback decoder (ADR-0001). The wrapper packages
+// are imported dynamically, only once native decode has failed, so they stay
+// out of the main bundle; the GPL core is downloaded from its pinned URL.
 
 import { FFMPEG_CORE_URL, type Transcoder } from '../core/ffmpeg';
 

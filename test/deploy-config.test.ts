@@ -58,9 +58,10 @@ describe('public/_headers', () => {
   });
 
   it('lets only fetches reach the pinned ffmpeg core, at the URL the loader uses', () => {
-    const reaching = [...csp].filter(([, sources]) => sources.some((s) => /^https?:/.test(s)));
-    expect(reaching).toEqual([['connect-src', expect.arrayContaining([FFMPEG_CORE_URL])]]);
-    expect(csp.get('connect-src')!.filter((s) => /^https?:/.test(s))).toEqual([FFMPEG_CORE_URL]);
+    const external = [...csp].flatMap(([directive, sources]) =>
+      sources.filter((s) => /^https?:/.test(s)).map((s) => [directive, s]),
+    );
+    expect(external).toEqual([['connect-src', FFMPEG_CORE_URL]]);
   });
 
   it('runs the fetched core from a blob: in the ffmpeg worker', () => {

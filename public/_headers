@@ -1,5 +1,5 @@
 # Cloudflare static-assets headers. Vite copies public/ into dist/ verbatim.
-# Nothing loads from another origin except the ffmpeg fallback's codec
+# Nothing loads from another origin except the ffmpeg fallback's core
 # (ADR-0001): connect-src allows exactly the pinned @ffmpeg/core URL, fetched
 # only when the browser can't decode a file. It must match FFMPEG_CORE_URL in
 # src/core/ffmpeg.ts (a test checks). The fetched core runs from a blob:, hence

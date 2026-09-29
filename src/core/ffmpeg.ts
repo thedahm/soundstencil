@@ -27,8 +27,9 @@ export interface FfmpegDecoderOptions {
   decodeWav: (wav: ArrayBuffer) => Promise<DecodedAudio>;
 }
 
-const INPUT = 'source';
-const OUTPUT = 'source.wav';
+// Names in ffmpeg's in-memory file system. Fixed, so decodes take turns.
+const SOURCE_FILE = 'source';
+const WAV_FILE = 'source.wav';
 
 /** A Decoder that loads ffmpeg on first use and extracts the audio to WAV. */
 export function ffmpegDecoder({ load, decodeWav }: FfmpegDecoderOptions): Decoder {
@@ -41,19 +42,27 @@ export function ffmpegDecoder({ load, decodeWav }: FfmpegDecoderOptions): Decode
     return loading;
   };
 
-  return async (bytes) => {
+  // One ffmpeg, one file system: a second pick waits for the first to finish.
+  let queue: Promise<unknown> = Promise.resolve();
+
+  const extract = async (bytes: ArrayBuffer) => {
     const ffmpeg = await transcoder();
-    await ffmpeg.writeFile(INPUT, new Uint8Array(bytes));
+    await ffmpeg.writeFile(SOURCE_FILE, new Uint8Array(bytes));
     try {
       // Audio only, as 16-bit PCM WAV: every browser decodes that. Channels and
       // sample rate are kept; decodeSource() downmixes as usual.
-      const code = await ffmpeg.exec(['-i', INPUT, '-vn', '-acodec', 'pcm_s16le', OUTPUT]);
+      const code = await ffmpeg.exec(['-i', SOURCE_FILE, '-vn', '-acodec', 'pcm_s16le', WAV_FILE]);
       if (code !== 0) throw new Error(`ffmpeg exited with code ${code}`);
-      const wav = await ffmpeg.readFile(OUTPUT);
-      return await decodeWav(wav.slice().buffer);
+      return (await ffmpeg.readFile(WAV_FILE)).slice().buffer;
     } finally {
-      // Best-effort: the output is missing if ffmpeg failed.
-      await Promise.allSettled([ffmpeg.deleteFile(INPUT), ffmpeg.deleteFile(OUTPUT)]);
+      // Best-effort: the WAV is missing if ffmpeg failed.
+      await Promise.allSettled([ffmpeg.deleteFile(SOURCE_FILE), ffmpeg.deleteFile(WAV_FILE)]);
     }
+  };
+
+  return async (bytes) => {
+    const wav = queue.then(() => extract(bytes));
+    queue = wav.catch(() => {});
+    return decodeWav(await wav);
   };
 }

@@ -114,18 +114,18 @@ const nativeDecoder: Decoder = async (bytes) => {
 };
 
 /** Show how the fallback decoder's download is going, if a file is still decoding. */
-function decodingDetail(detail: string | undefined) {
+function showDecodingDetail(detail: string | undefined) {
   if (state.phase === 'decoding') setState({ ...state, detail });
 }
 
 /** Only for files the browser can't decode itself (ADR-0001). */
 const fallbackDecoder = ffmpegDecoder({
   load: async () => {
-    decodingDetail('Downloading a decoder for this file (about 30 MB)…');
+    showDecodingDetail('Downloading a decoder for this file (about 30 MB)…');
     try {
       return await loadFfmpeg();
     } finally {
-      decodingDetail(undefined);
+      showDecodingDetail(undefined);
     }
   },
   decodeWav: nativeDecoder,
@@ -177,7 +177,7 @@ fileInput.addEventListener('change', async () => {
   setState({ phase: 'decoding', fileName: file.name });
   try {
     // Read locally; the bytes never go anywhere but the decoder.
-    const source = await decodeSource(await file.arrayBuffer(), decoders, { phone: onPhone() });
+    const source = await decodeSource(() => file.arrayBuffer(), decoders, { phone: onPhone() });
     if (pick !== latestPick) return;
     setState({
       phase: 'ready',
