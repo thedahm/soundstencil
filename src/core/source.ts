@@ -9,7 +9,7 @@ export interface DecodedAudio {
 
 /**
  * Turns the file's bytes into samples, or throws. The UI supplies the browser's
- * native decodeAudioData(); the ffmpeg fallback (ADR-0001) is appended after it.
+ * native decodeAudioData(), then the ffmpeg fallback (ADR-0001, see ffmpeg.ts).
  */
 export type Decoder = (bytes: ArrayBuffer) => Promise<DecodedAudio>;
 
@@ -29,28 +29,33 @@ export class DecodeError extends Error {
 /**
  * Try each decoder in order and return the first success as a mono Source.
  * decodeAudioData() detaches the buffer it is given, even when it fails, so
- * every decoder but the last gets a copy. The last gets the original, so the
- * usual single-decoder case never holds a large video in memory twice.
+ * each decoder gets the file read afresh. Reading again rather than copying up
+ * front means the usual case, native decode succeeding, never holds a large
+ * video in memory twice.
  */
 export async function decodeSource(
-  bytes: ArrayBuffer,
+  read: () => Promise<ArrayBuffer>,
   decoders: readonly Decoder[],
+  { phone = false }: { phone?: boolean } = {},
 ): Promise<Source> {
   let decoded: DecodedAudio | undefined;
   const failures: unknown[] = [];
-  for (const [i, decode] of decoders.entries()) {
+  for (const decode of decoders) {
     try {
-      decoded = await decode(i === decoders.length - 1 ? bytes : bytes.slice(0));
+      decoded = await decode(await read());
       break;
     } catch (error) {
       failures.push(error);
     }
   }
   if (!decoded) {
-    throw new DecodeError(
-      "Couldn't read the sound in this file. Try another video or audio file, or a different browser.",
-      { cause: failures },
-    );
+    // The ffmpeg fallback is best-effort on phones (ADR-0001), so point there.
+    const suggestion = phone
+      ? 'Try another file, or open soundstencil on a desktop browser.'
+      : 'Try another video or audio file, or a different browser.';
+    throw new DecodeError(`Couldn't read the sound in this file. ${suggestion}`, {
+      cause: failures,
+    });
   }
   const length = decoded.channels[0]?.length ?? 0;
   if (length === 0) throw new DecodeError('This file has no sound in it.');

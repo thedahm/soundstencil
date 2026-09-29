@@ -20,6 +20,8 @@
     "wrangler": "4.143.0"
   },
   "dependencies": {
+    "@ffmpeg/ffmpeg": "0.12.15",
+    "@ffmpeg/util": "0.12.2",
     "clipper2-js": "1.2.4"
   }
 }

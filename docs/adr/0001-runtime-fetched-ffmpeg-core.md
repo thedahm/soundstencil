@@ -20,4 +20,6 @@ Most Sources decode natively with `decodeAudioData()`. Some do not (MOV in Firef
 - The repo and deploy ship no GPL code, so forks inherit a clean MIT tree.
 - The fallback depends on jsDelivr availability and fails if it is offline or blocked. Acceptable because it is a rare path; the error suggests trying another browser.
 - Bumping the core version means updating the pinned URL in two places (loader and CSP). A test should assert they match.
+- The core runs from a `blob:` URL inside ffmpeg's worker, so `script-src` includes `blob:`. The pinned URL itself only needs `connect-src`.
+- jsDelivr serves the wasm compressed, so `toBlobURL`'s download-progress mode fails (Content-Length is the compressed size). The loading state says what's downloading and roughly how big, with no percentage.
 - Self-hosting the core later is allowed but reopens this ADR (source-offer obligations).

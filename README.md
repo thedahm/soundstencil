@@ -22,7 +22,7 @@ npm run build      # typecheck + Vite build to dist/
 
 ## Privacy
 
-No analytics, no external fonts, no requests to any other origin. The Content-Security-Policy in [`public/_headers`](public/_headers) enforces that: `default-src 'self'`, plus only `blob:` (decoded media, downloads) and `'wasm-unsafe-eval'` (WebAssembly). `curl -I https://soundstencil.dominichanzely.com` shows it. The ffmpeg fallback will add exactly one more: the pinned jsDelivr `@ffmpeg/core` URL, fetched only when the browser can't decode a file (ADR-0001).
+No analytics, no external fonts, no requests to any other origin. The Content-Security-Policy in [`public/_headers`](public/_headers) enforces that: `default-src 'self'`, plus only `blob:` (decoded media, downloads) and `'wasm-unsafe-eval'` (WebAssembly). `curl -I https://soundstencil.dominichanzely.com` shows it. The one exception is the ffmpeg fallback: when the browser can't decode a file, it downloads the ffmpeg codec (about 30 MB) from one pinned jsDelivr `@ffmpeg/core` URL, the only other origin the CSP allows. Only the codec is downloaded; your file stays on your device and is converted there (ADR-0001).
 
 ## Deploy
 

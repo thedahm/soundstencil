@@ -1,9 +1,12 @@
 # Cloudflare static-assets headers. Vite copies public/ into dist/ verbatim.
-# Nothing loads from another origin. blob: covers decoded media and generated
-# downloads; 'wasm-unsafe-eval' covers WebAssembly. The pinned ffmpeg core URL
-# is added here by the ffmpeg fallback slice (ADR-0001).
+# Nothing loads from another origin except the ffmpeg fallback's core
+# (ADR-0001): connect-src allows exactly the pinned @ffmpeg/core URL, fetched
+# only when the browser can't decode a file. It must match FFMPEG_CORE_URL in
+# src/core/ffmpeg.ts (a test checks). The fetched core runs from a blob:, hence
+# blob: in script-src. blob: also covers decoded media and generated downloads;
+# 'wasm-unsafe-eval' covers WebAssembly.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; media-src 'self' blob:; img-src 'self' blob:; connect-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; media-src 'self' blob:; img-src 'self' blob:; connect-src 'self' blob: https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm/; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
   Referrer-Policy: no-referrer
   X-Content-Type-Options: nosniff
   Permissions-Policy: camera=(), microphone=(), geolocation=()

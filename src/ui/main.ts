@@ -6,6 +6,7 @@ import {
   type SampleRange,
   type Selection,
 } from '../core/selection';
+import { ffmpegDecoder } from '../core/ffmpeg';
 import { DecodeError, decodeSource, type Decoder, type Source } from '../core/source';
 import { DEFAULT_FILL_RATIO, DEFAULT_ROUNDING } from '../core/bars';
 import { DEFAULT_BUCKETS, DEFAULT_FLOOR_MM, DEFAULT_GAMMA } from '../core/buckets';
@@ -17,6 +18,7 @@ import { mm, rasterSvg, type StyleName } from '../core/svg';
 import { DEFAULT_THIN_SPOT_MM, thinSpots, type ThinSpot } from '../core/thin-spots';
 import { defaultUnit, formatLength, fromMm, roundTo, scaleBarMm, toMm, type Unit } from '../core/units';
 import { waveformPeaks } from '../core/waveform';
+import { loadFfmpeg } from './ffmpeg';
 import './style.css';
 
 interface Editing {
@@ -31,7 +33,12 @@ interface Editing {
 
 type State =
   | { phase: 'empty' }
-  | { phase: 'decoding'; fileName: string }
+  | {
+      phase: 'decoding';
+      fileName: string;
+      /** Set while the ffmpeg fallback downloads: what to show instead of "Reading…". */
+      detail?: string;
+    }
   | { phase: 'ready'; fileName: string; source: Source; edit: Editing }
   | { phase: 'error'; fileName: string; message: string };
 
@@ -106,8 +113,28 @@ const nativeDecoder: Decoder = async (bytes) => {
   return { sampleRate: buffer.sampleRate, channels };
 };
 
-// The ffmpeg fallback (ADR-0001) is appended here by its own slice.
-const decoders: Decoder[] = [nativeDecoder];
+/** Show how the fallback decoder's download is going, if a file is still decoding. */
+function showDecodingDetail(detail: string | undefined) {
+  if (state.phase === 'decoding') setState({ ...state, detail });
+}
+
+/** Only for files the browser can't decode itself (ADR-0001). */
+const fallbackDecoder = ffmpegDecoder({
+  load: async () => {
+    showDecodingDetail('Downloading a decoder for this file (about 30 MB)…');
+    try {
+      return await loadFfmpeg();
+    } finally {
+      showDecodingDetail(undefined);
+    }
+  },
+  decodeWav: nativeDecoder,
+});
+
+const decoders: Decoder[] = [nativeDecoder, fallbackDecoder];
+
+/** A phone, where the ffmpeg fallback is best-effort, so errors suggest desktop. */
+const onPhone = () => matchMedia('(pointer: coarse)').matches;
 
 function setState(next: State) {
   if (state.phase === 'ready' && (next.phase !== 'ready' || next.source !== state.source)) {
@@ -150,7 +177,7 @@ fileInput.addEventListener('change', async () => {
   setState({ phase: 'decoding', fileName: file.name });
   try {
     // Read locally; the bytes never go anywhere but the decoder.
-    const source = await decodeSource(await file.arrayBuffer(), decoders);
+    const source = await decodeSource(() => file.arrayBuffer(), decoders, { phone: onPhone() });
     if (pick !== latestPick) return;
     setState({
       phase: 'ready',
@@ -569,7 +596,7 @@ const seconds = (samples: number, source: Source) => (samples / source.sampleRat
 function render() {
   status.textContent =
     state.phase === 'decoding'
-      ? `Reading ${state.fileName}…`
+      ? (state.detail ?? `Reading ${state.fileName}…`)
       : state.phase === 'ready'
         ? `${state.fileName}, ${state.source.duration.toFixed(1)} s`
         : '';
