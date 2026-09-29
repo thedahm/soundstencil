@@ -7,6 +7,11 @@ import {
   type Selection,
 } from '../core/selection';
 import { DecodeError, decodeSource, type Decoder, type Source } from '../core/source';
+import { DEFAULT_FILL_RATIO, DEFAULT_ROUNDING } from '../core/bars';
+import { DEFAULT_BUCKETS, DEFAULT_FLOOR_MM, DEFAULT_GAMMA } from '../core/buckets';
+import { DEFAULT_PRINT_SIZE } from '../core/print-size';
+import { barsStencil, type Design, type Stencil } from '../core/stencil';
+import { mm } from '../core/svg';
 import { waveformPeaks } from '../core/waveform';
 import './style.css';
 
@@ -45,6 +50,21 @@ const zoomButton = $<HTMLButtonElement>('#zoom');
 const tightenButton = $<HTMLButtonElement>('#tighten');
 const undoButton = $<HTMLButtonElement>('#undo');
 const thresholdInput = $<HTMLInputElement>('#threshold');
+const designForm = $<HTMLFormElement>('#design');
+const designInputs = {
+  count: $<HTMLInputElement>('#count'),
+  gamma: $<HTMLInputElement>('#gamma'),
+  floor: $<HTMLInputElement>('#floor'),
+  reduction: $<HTMLSelectElement>('#reduction'),
+  fill: $<HTMLInputElement>('#fill'),
+  rounding: $<HTMLInputElement>('#rounding'),
+  width: $<HTMLInputElement>('#width'),
+  height: $<HTMLInputElement>('#height'),
+};
+const preview = $('#preview');
+const previewPlaceholder = $('#preview-placeholder');
+const barInfo = $('#bar-info');
+const downloadButton = $<HTMLButtonElement>('#download');
 
 app.dataset.app = APP_NAME;
 
@@ -201,17 +221,71 @@ tightenButton.addEventListener('click', () => {
   const selection = currentSelection();
   if (state.phase !== 'ready' || !selection) return;
   const next = tighten(state.source.samples, state.source.sampleRate, selection, {
-    thresholdDb: thresholdDb(),
+    thresholdDb: numberFrom(thresholdInput, DEFAULT_TIGHTEN_THRESHOLD_DB),
   });
   if (!sameSelection(next, selection)) select(next);
 });
 
-/** The threshold input, or the default when it is empty or out of range. */
-function thresholdDb(): number {
-  const value = thresholdInput.valueAsNumber;
-  const [min, max] = [Number(thresholdInput.min), Number(thresholdInput.max)];
-  return Number.isFinite(value) ? clamp(value, min, max) : DEFAULT_TIGHTEN_THRESHOLD_DB;
+/** A number input's value clamped to its range, or the fallback when it is empty. */
+function numberFrom(input: HTMLInputElement, fallback: number): number {
+  const value = input.valueAsNumber;
+  const [min, max] = [Number(input.min), Number(input.max)];
+  return Number.isFinite(value) ? clamp(value, min, max) : fallback;
 }
+
+/** The design controls as the core takes them: fractions, and mm from cm. */
+function design(): Design {
+  const { count, gamma, floor, reduction, fill, rounding, width, height } = designInputs;
+  return {
+    count: numberFrom(count, DEFAULT_BUCKETS),
+    gamma: numberFrom(gamma, DEFAULT_GAMMA),
+    floorMm: numberFrom(floor, DEFAULT_FLOOR_MM),
+    reduction: reduction.value === 'rms' ? 'rms' : 'peak',
+    fillRatio: numberFrom(fill, DEFAULT_FILL_RATIO * 100) / 100,
+    rounding: numberFrom(rounding, DEFAULT_ROUNDING * 100) / 100,
+    printSize: {
+      widthMm: numberFrom(width, DEFAULT_PRINT_SIZE.widthMm / 10) * 10,
+      heightMm: numberFrom(height, DEFAULT_PRINT_SIZE.heightMm / 10) * 10,
+    },
+  };
+}
+
+let lastStencil: { source: Source; selection: Selection; design: string; stencil: Stencil } | undefined;
+
+/**
+ * The Stencil for the current Selection and controls, if there is a Selection.
+ * Remembered, since render() runs on every pointermove and most don't change it.
+ */
+function currentStencil(): Stencil | undefined {
+  const selection = currentSelection();
+  if (state.phase !== 'ready' || !selection) return undefined;
+  const { source } = state;
+  const settings = design();
+  const key = JSON.stringify(settings);
+  if (
+    lastStencil?.source !== source ||
+    !sameSelection(lastStencil.selection, selection) ||
+    lastStencil.design !== key
+  ) {
+    lastStencil = { source, selection, design: key, stencil: barsStencil(source.samples, selection, settings) };
+  }
+  return lastStencil.stencil;
+}
+
+designForm.addEventListener('input', render);
+designForm.addEventListener('submit', (e) => e.preventDefault());
+
+downloadButton.addEventListener('click', () => {
+  const stencil = currentStencil();
+  if (!stencil) return;
+  const url = URL.createObjectURL(new Blob([stencil.svg], { type: 'image/svg+xml' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = stencil.fileName;
+  link.click();
+  // Some browsers start the download well after click() returns.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+});
 
 undoButton.addEventListener('click', () => {
   updateEditing(({ undo }) => ({ selection: undo.at(-1) ?? null, undo: undo.slice(0, -1) }));
@@ -339,6 +413,27 @@ function render() {
   error.textContent = state.phase === 'error' ? state.message : '';
   editor.hidden = state.phase !== 'ready';
   if (state.phase === 'ready') renderSelection(state.source, state.edit);
+  renderPreview();
+}
+
+/** The markup in the preview, so an unchanged Stencil isn't re-parsed. */
+let shownSvg = '';
+
+function renderPreview() {
+  for (const output of designForm.querySelectorAll('output')) {
+    const input = designInputs[output.htmlFor.value as keyof typeof designInputs];
+    output.value = input.id === 'fill' || input.id === 'rounding' ? `${input.value}%` : input.value;
+  }
+  const stencil = currentStencil();
+  preview.hidden = !stencil;
+  previewPlaceholder.hidden = !!stencil;
+  downloadButton.disabled = !stencil;
+  // Our own markup, built from numbers only.
+  const svg = stencil?.svg ?? '';
+  if (svg !== shownSvg) preview.innerHTML = shownSvg = svg;
+  barInfo.textContent = stencil
+    ? `Bars ${mm(stencil.geometry.barWidthMm)} mm wide, ${mm(stencil.geometry.gapMm)} mm apart`
+    : '';
 }
 
 function renderSelection(source: Source, { selection, view, undo, playing }: Editing) {
