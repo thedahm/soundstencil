@@ -87,6 +87,20 @@ describe('decodeSource', () => {
     await expect(attempt).rejects.toThrow(/couldn't read the sound/i);
   });
 
+  it('suggests a desktop browser when no decoder can read the file on a phone', async () => {
+    const attempt = decodeSource(
+      bytes(),
+      [
+        async () => {
+          throw new Error('Unable to decode audio data');
+        },
+      ],
+      { phone: true },
+    );
+    await expect(attempt).rejects.toBeInstanceOf(DecodeError);
+    await expect(attempt).rejects.toThrow(/desktop/i);
+  });
+
   it('fails with a DecodeError when the file has no sound in it', async () => {
     const attempt = decodeSource(bytes(), [async () => ({ sampleRate: 44100, channels: [] })]);
     await expect(attempt).rejects.toBeInstanceOf(DecodeError);

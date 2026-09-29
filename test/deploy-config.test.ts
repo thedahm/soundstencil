@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { FFMPEG_CORE_URL } from '../src/core/ffmpeg';
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
@@ -42,8 +43,8 @@ describe('public/_headers', () => {
     expect(csp.get('default-src')).toEqual(["'self'"]);
   });
 
-  it("allows nothing beyond 'self', blob:, and 'wasm-unsafe-eval'", () => {
-    const allowed = new Set(["'self'", "'none'", 'blob:', "'wasm-unsafe-eval'"]);
+  it("allows nothing beyond 'self', blob:, 'wasm-unsafe-eval', and the ffmpeg core", () => {
+    const allowed = new Set(["'self'", "'none'", 'blob:', "'wasm-unsafe-eval'", FFMPEG_CORE_URL]);
     for (const [directive, sources] of csp) {
       for (const source of sources) {
         expect(allowed, `${directive} ${source}`).toContain(source);
@@ -54,6 +55,16 @@ describe('public/_headers', () => {
   it('permits wasm compilation for scripts and blob: for decoded media', () => {
     expect(csp.get('script-src')).toContain("'wasm-unsafe-eval'");
     expect(csp.get('media-src')).toContain('blob:');
+  });
+
+  it('lets only fetches reach the pinned ffmpeg core, at the URL the loader uses', () => {
+    const reaching = [...csp].filter(([, sources]) => sources.some((s) => /^https?:/.test(s)));
+    expect(reaching).toEqual([['connect-src', expect.arrayContaining([FFMPEG_CORE_URL])]]);
+    expect(csp.get('connect-src')!.filter((s) => /^https?:/.test(s))).toEqual([FFMPEG_CORE_URL]);
+  });
+
+  it('runs the fetched core from a blob: in the ffmpeg worker', () => {
+    expect(csp.get('script-src')).toContain('blob:');
   });
 
   it('blocks framing, plugins, and base/form hijacking', () => {

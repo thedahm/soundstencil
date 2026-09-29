@@ -9,7 +9,7 @@ export interface DecodedAudio {
 
 /**
  * Turns the file's bytes into samples, or throws. The UI supplies the browser's
- * native decodeAudioData(); the ffmpeg fallback (ADR-0001) is appended after it.
+ * native decodeAudioData(), then the ffmpeg fallback (ADR-0001, see ffmpeg.ts).
  */
 export type Decoder = (bytes: ArrayBuffer) => Promise<DecodedAudio>;
 
@@ -35,6 +35,7 @@ export class DecodeError extends Error {
 export async function decodeSource(
   bytes: ArrayBuffer,
   decoders: readonly Decoder[],
+  { phone = false }: { phone?: boolean } = {},
 ): Promise<Source> {
   let decoded: DecodedAudio | undefined;
   const failures: unknown[] = [];
@@ -47,10 +48,13 @@ export async function decodeSource(
     }
   }
   if (!decoded) {
-    throw new DecodeError(
-      "Couldn't read the sound in this file. Try another video or audio file, or a different browser.",
-      { cause: failures },
-    );
+    // The ffmpeg fallback is best-effort on phones (ADR-0001), so point there.
+    const suggestion = phone
+      ? 'Try another file, or open soundstencil on a desktop browser.'
+      : 'Try another video or audio file, or a different browser.';
+    throw new DecodeError(`Couldn't read the sound in this file. ${suggestion}`, {
+      cause: failures,
+    });
   }
   const length = decoded.channels[0]?.length ?? 0;
   if (length === 0) throw new DecodeError('This file has no sound in it.');
