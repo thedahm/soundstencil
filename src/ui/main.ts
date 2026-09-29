@@ -12,9 +12,9 @@ import { DEFAULT_BUCKETS, DEFAULT_FLOOR_MM, DEFAULT_GAMMA } from '../core/bucket
 import { DEFAULT_SMOOTHING, DEFAULT_THICKNESS_MM } from '../core/line';
 import { DEFAULT_PRINT_SIZE } from '../core/print-size';
 import { stencil as drawStencil, type Design, type Stencil, type SvgFile } from '../core/stencil';
-import { mm } from '../core/svg';
+import { mm, type StyleName } from '../core/svg';
 import { DEFAULT_THIN_SPOT_MM, thinSpots, type ThinSpot } from '../core/thin-spots';
-import { defaultUnit, formatLength, fromMm, scaleBarMm, toMm, type Unit } from '../core/units';
+import { defaultUnit, formatLength, fromMm, roundTo, scaleBarMm, toMm, type Unit } from '../core/units';
 import { waveformPeaks } from '../core/waveform';
 import './style.css';
 
@@ -273,40 +273,45 @@ function initialUnit(): Unit {
 
 let unit = initialUnit();
 
+interface Length {
+  input: HTMLInputElement;
+  mm: number;
+  min: number;
+  max: number;
+  /** Decimals shown, and so the input's step, per unit. */
+  places: Record<Unit, number>;
+}
+
 /** Each length in mm, with its range; inputs show them in the active unit. */
-const lengths: Record<keyof typeof lengthInputs, { mm: number; min: number; max: number }> = {
-  width: { mm: DEFAULT_PRINT_SIZE.widthMm, min: 10, max: 500 },
-  height: { mm: DEFAULT_PRINT_SIZE.heightMm, min: 5, max: 300 },
-  thin: { mm: DEFAULT_THIN_SPOT_MM, min: 0, max: 5 },
+const lengths: Record<keyof typeof lengthInputs, Length> = {
+  width: { input: lengthInputs.width, mm: DEFAULT_PRINT_SIZE.widthMm, min: 10, max: 500, places: { cm: 2, in: 2 } },
+  height: { input: lengthInputs.height, mm: DEFAULT_PRINT_SIZE.heightMm, min: 5, max: 300, places: { cm: 2, in: 2 } },
+  // Finer: the threshold is around a millimetre, 0.039 in.
+  thin: { input: lengthInputs.thin, mm: DEFAULT_THIN_SPOT_MM, min: 0, max: 5, places: { cm: 2, in: 3 } },
 };
 
-/** Steps and shown precision per unit: fine for the threshold, coarser for the Print Size. */
-const STEP: Record<Unit, { size: number; thin: number }> = {
-  cm: { size: 0.1, thin: 0.01 },
-  in: { size: 0.05, thin: 0.005 },
-};
-
-/** Show every length in the active unit. */
+/**
+ * Show every length in the active unit. The step is the shown precision and
+ * the range is rounded outward to it, so every shown value is on a step.
+ */
 function showLengths() {
-  for (const [name, input] of Object.entries(lengthInputs) as [keyof typeof lengths, HTMLInputElement][]) {
-    const { mm: value, min, max } = lengths[name];
-    const step = name === 'thin' ? STEP[unit].thin : STEP[unit].size;
-    const digits = name === 'thin' && unit === 'in' ? 1000 : 100;
+  for (const { input, mm: value, min, max, places } of Object.values(lengths)) {
+    const step = 10 ** -places[unit];
     input.step = String(step);
-    input.min = String(Math.floor(fromMm(min, unit) * digits) / digits);
-    input.max = String(Math.ceil(fromMm(max, unit) * digits) / digits);
-    input.value = String(Math.round(fromMm(value, unit) * digits) / digits);
+    input.min = String(roundTo(Math.floor(fromMm(min, unit) / step) * step, places[unit]));
+    input.max = String(roundTo(Math.ceil(fromMm(max, unit) / step) * step, places[unit]));
+    input.value = String(roundTo(fromMm(value, unit), places[unit]));
   }
   for (const label of designForm.querySelectorAll('.unit')) label.textContent = unit;
   for (const radio of unitRadios) (radio as HTMLInputElement).checked = (radio as HTMLInputElement).value === unit;
 }
 
-for (const [name, input] of Object.entries(lengthInputs) as [keyof typeof lengths, HTMLInputElement][]) {
+for (const length of Object.values(lengths)) {
+  const { input } = length;
   // Runs before the form's own input listener re-renders.
   input.addEventListener('input', () => {
     const value = input.valueAsNumber;
-    const { min, max } = lengths[name];
-    if (Number.isFinite(value)) lengths[name].mm = clamp(toMm(value, unit), min, max);
+    if (Number.isFinite(value)) length.mm = clamp(toMm(value, unit), length.min, length.max);
   });
   // Show the clamped value once the user is done typing.
   input.addEventListener('change', showLengths);
@@ -580,13 +585,16 @@ function renderPreview() {
  * drawn at the preview's scale, and true size is checked on paper.
  */
 function renderMeasurements(stencil: Stencil | undefined) {
-  const { widthMm, heightMm } = design().printSize!;
+  const [widthMm, heightMm] = [lengths.width.mm, lengths.height.mm];
   const [width, height] = [formatLength(widthMm, unit), formatLength(heightMm, unit)];
   dimWidth.textContent = width;
   dimHeight.textContent = height;
   previewSvg.setAttribute('aria-label', `Stencil preview, ${width} wide and ${height} tall`);
-  scaleBar.style.width = `${(scaleBarMm(unit) / widthMm) * 100}%`;
-  scaleLabel.textContent = formatLength(scaleBarMm(unit), unit);
+  // Left out when it wouldn't fit: a design narrower than half an inch.
+  const scaleMm = scaleBarMm(unit);
+  scaleBar.parentElement!.hidden = scaleMm > widthMm;
+  scaleBar.style.width = `${(scaleMm / widthMm) * 100}%`;
+  scaleLabel.textContent = formatLength(scaleMm, unit);
   sizeHint.textContent = stencil
     ? `Check size: print the SVG at 100% (turn off "fit to page"). It should measure ${width} wide.`
     : '';
@@ -601,21 +609,29 @@ function renderMeasurements(stencil: Stencil | undefined) {
     )
     .join('');
   thinNote.hidden = spots.length === 0;
-  thinNote.textContent = spots.length ? thinSpotNote(spots) : '';
+  thinNote.textContent = stencil && spots.length ? thinSpotNote(spots, stencil.style) : '';
 }
 
-function thinSpotNote(spots: ThinSpot[]): string {
-  const threshold = formatLength(lengths.thin.mm, unit);
+/** What gives each kind of Thin Spot more room, per Style. */
+const THIN_SPOT_FIXES: Record<StyleName, Record<ThinSpot['kind'], string>> = {
+  line: { ink: 'a thicker line', gap: 'fewer Buckets, a thinner line, or a wider Print Size' },
+  bars: { ink: 'more Fill, fewer Buckets, or a wider Print Size', gap: 'less Fill, fewer Buckets, or a wider Print Size' },
+};
+
+function thinSpotNote(spots: ThinSpot[], style: StyleName): string {
+  // As precise as the threshold input shows it.
+  const threshold = formatLength(lengths.thin.mm, unit, lengths.thin.places[unit]);
   const gaps = spots.filter((s) => s.kind === 'gap').length;
   const thin = spots.length - gaps;
   const parts = [
     thin && `${thin} ${thin === 1 ? 'part' : 'parts'} thinner than ${threshold}`,
     gaps && `${gaps} ${gaps === 1 ? 'gap' : 'gaps'} narrower than ${threshold}`,
   ].filter(Boolean);
+  const fixes = [...new Set(spots.map((s) => THIN_SPOT_FIXES[style][s.kind]))];
   return (
     `Thin Spots, outlined in red: ${parts.join(' and ')}. ` +
     'Fine detail can blur or fade as a tattoo heals and ages. ' +
-    'Fewer Buckets or a larger Print Size give it more room. Export still works.'
+    `For more room, try ${fixes.join('; or ')}. Export still works.`
   );
 }
 

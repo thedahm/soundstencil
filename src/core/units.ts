@@ -8,9 +8,11 @@ const MM_PER: Record<Unit, number> = { cm: 10, in: 25.4 };
 export const fromMm = (mm: number, unit: Unit) => mm / MM_PER[unit];
 export const toMm = (value: number, unit: Unit) => value * MM_PER[unit];
 
-/** A length in the unit at 0.01 precision, without trailing zeros: "3.15 in". */
-export const formatLength = (mm: number, unit: Unit) =>
-  `${Math.round(fromMm(mm, unit) * 100) / 100} ${unit}`;
+/** A length in the unit to `places` decimals, without trailing zeros: "3.15 in". */
+export const formatLength = (mm: number, unit: Unit, places = 2) =>
+  `${roundTo(fromMm(mm, unit), places)} ${unit}`;
+
+export const roundTo = (value: number, places: number) => Math.round(value * 10 ** places) / 10 ** places;
 
 /** The preview's scale bar: 1 cm, or half an inch. */
 export const scaleBarMm = (unit: Unit) => (unit === 'cm' ? 10 : 12.7);

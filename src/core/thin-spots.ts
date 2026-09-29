@@ -41,11 +41,15 @@ export function thinSpots(
   ink: readonly (readonly Point[])[],
   thresholdMm = DEFAULT_THIN_SPOT_MM,
 ): ThinSpot[] {
-  const points = ink.flat();
-  if (!(thresholdMm > 0) || points.length === 0) return [];
-  const xs = points.map((p) => p.x);
-  const ys = points.map((p) => p.y);
-  const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  if (!(thresholdMm > 0)) return [];
+  // A loop, not Math.min(...): an outline can have more points than a call takes arguments.
+  let [minX, maxX, minY, maxY] = [Infinity, -Infinity, Infinity, -Infinity];
+  for (const polygon of ink) {
+    for (const { x, y } of polygon) {
+      [minX, maxX, minY, maxY] = [Math.min(minX, x), Math.max(maxX, x), Math.min(minY, y), Math.max(maxY, y)];
+    }
+  }
+  if (minX > maxX) return [];
   const cell = Math.max(MIN_CELL_MM, Math.sqrt(((maxX - minX + 2 * thresholdMm) * (maxY - minY + 2 * thresholdMm)) / MAX_CELLS));
   // Room around the ink for the closing to grow into, and white beyond that.
   const margin = thresholdMm + 2 * cell;

@@ -1,4 +1,5 @@
 // The Bars Style: one mirrored, rounded bar per Bucket.
+import type { Point } from './line';
 import type { PrintSize } from './print-size';
 
 export const MIN_FILL_RATIO = 0.1;
@@ -66,7 +67,7 @@ const ARC_TOLERANCE_MM = 0.01;
  * A bar as a polygon, its rounded corners flattened to within
  * ARC_TOLERANCE_MM, clockwise on screen from the top-left corner's arc.
  */
-export function barPolygon({ x, y, width, height, radius: r }: Bar): { x: number; y: number }[] {
+export function barPolygon({ x, y, width, height, radius: r }: Bar): Point[] {
   if (r <= 0) {
     return [
       { x, y },

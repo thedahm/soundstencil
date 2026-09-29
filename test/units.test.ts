@@ -24,6 +24,11 @@ describe('lengths', () => {
     expect(formatLength(1, 'in')).toBe('0.04 in');
   });
 
+  it('formats finer when asked, to match an input that shows more', () => {
+    expect(formatLength(1, 'in', 3)).toBe('0.039 in');
+    expect(formatLength(25.4, 'in', 3)).toBe('1 in');
+  });
+
   it('has a scale bar of 1 cm or half an inch', () => {
     expect(scaleBarMm('cm')).toBe(10);
     expect(scaleBarMm('in')).toBe(12.7);
