@@ -46,7 +46,63 @@
         </section>
         <section class="pane" aria-labelledby="preview-heading">
           <h2 id="preview-heading">Preview</h2>
-          <p class="placeholder">Your stencil will appear here.</p>
+          <p id="preview-placeholder" class="placeholder">Your stencil will appear here.</p>
+          <div id="preview" class="preview" role="img" aria-label="Stencil preview" hidden></div>
+          <p id="bar-info" class="status"></p>
+          <form id="design" class="design">
+            <fieldset>
+              <legend>Buckets</legend>
+              <label class="field">
+                Bars
+                <input id="count" type="range" min="30" max="80" step="1" value="48" />
+                <output for="count"></output>
+              </label>
+              <label class="field">
+                Compression γ
+                <input id="gamma" type="range" min="0.3" max="1" step="0.05" value="0.6" />
+                <output for="gamma"></output>
+              </label>
+              <label class="field">
+                Minimum height
+                <input id="floor" type="number" min="0" max="10" step="0.1" value="1" />
+                mm
+              </label>
+              <label class="field">
+                Loudness
+                <select id="reduction">
+                  <option value="peak" selected>Peak</option>
+                  <option value="rms">RMS</option>
+                </select>
+              </label>
+            </fieldset>
+            <fieldset>
+              <legend>Bars</legend>
+              <label class="field">
+                Fill
+                <input id="fill" type="range" min="10" max="90" step="5" value="60" />
+                <output for="fill"></output>
+              </label>
+              <label class="field">
+                Rounding
+                <input id="rounding" type="range" min="0" max="100" step="5" value="100" />
+                <output for="rounding"></output>
+              </label>
+            </fieldset>
+            <fieldset>
+              <legend>Print Size</legend>
+              <label class="field">
+                Width
+                <input id="width" type="number" min="1" max="50" step="0.1" value="8" />
+                cm
+              </label>
+              <label class="field">
+                Max height
+                <input id="height" type="number" min="0.5" max="30" step="0.1" value="2.5" />
+                cm
+              </label>
+            </fieldset>
+          </form>
+          <button id="download" class="button" type="button" disabled>Download Stencil SVG</button>
         </section>
       </div>
     </main>

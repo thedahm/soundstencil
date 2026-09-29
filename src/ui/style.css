@@ -241,6 +241,59 @@ p {
   border-radius: 0.5rem;
 }
 
+.field select {
+  min-height: 44px;
+  padding: 0 0.5rem;
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+
+.field input[type='range'] {
+  width: 8rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  accent-color: var(--accent);
+}
+
+.field output {
+  min-width: 2.5rem;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The Stencil on paper, black on white in either color scheme. */
+.preview {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.preview svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.design fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1rem;
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 0 0 0.5rem;
+  padding: 0.5rem 0 0;
+}
+
+.design legend {
+  padding: 0 0.5rem 0 0;
+  font-weight: 600;
+}
+
 .placeholder {
   color: var(--muted);
   margin: 0;
