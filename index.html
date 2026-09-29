@@ -48,8 +48,13 @@
           <h2 id="preview-heading">Preview</h2>
           <p id="preview-placeholder" class="placeholder">Your stencil will appear here.</p>
           <div id="preview" class="preview" role="img" aria-label="Stencil preview" hidden></div>
-          <p id="bar-info" class="status"></p>
+          <p id="stencil-info" class="status"></p>
           <form id="design" class="design">
+            <fieldset>
+              <legend>Style</legend>
+              <label class="field"><input type="radio" name="style" value="line" checked /> Line</label>
+              <label class="field"><input type="radio" name="style" value="bars" /> Bars</label>
+            </fieldset>
             <fieldset>
               <legend>Buckets</legend>
               <label class="field">
@@ -75,7 +80,20 @@
                 </select>
               </label>
             </fieldset>
-            <fieldset>
+            <fieldset id="line-controls">
+              <legend>Line</legend>
+              <label class="field">
+                Thickness
+                <input id="thickness" type="number" min="0.3" max="5" step="0.1" value="1.2" />
+                mm
+              </label>
+              <label class="field">
+                Smoothing
+                <input id="smoothing" type="range" min="0" max="100" step="5" value="80" />
+                <output for="smoothing"></output>
+              </label>
+            </fieldset>
+            <fieldset id="bars-controls" hidden>
               <legend>Bars</legend>
               <label class="field">
                 Fill
@@ -102,7 +120,10 @@
               </label>
             </fieldset>
           </form>
-          <button id="download" class="button" type="button" disabled>Download Stencil SVG</button>
+          <div class="controls">
+            <button id="download" class="button" type="button" disabled>Download Stencil SVG</button>
+            <button id="download-editable" class="button" type="button" disabled>Download Editable SVG</button>
+          </div>
         </section>
       </div>
     </main>

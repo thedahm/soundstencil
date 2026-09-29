@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { barsPath, stencilFileName, stencilSvg } from '../src/core/svg';
+import {
+  barsPath,
+  curvePath,
+  editableFileName,
+  editableSvg,
+  polygonsPath,
+  stencilFileName,
+  stencilSvg,
+} from '../src/core/svg';
 
 const SIZE = { widthMm: 80, heightMm: 25 };
 
@@ -33,6 +41,47 @@ describe('barsPath', () => {
   });
 });
 
+describe('polygonsPath', () => {
+  it('draws each polygon as one closed subpath of straight lines', () => {
+    expect(
+      polygonsPath([
+        [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }],
+        [{ x: 2, y: 2 }, { x: 3, y: 2 }, { x: 3, y: 3 }],
+      ]),
+    ).toBe('M0 0L1 0 1 1ZM2 2L3 2 3 3Z');
+  });
+
+  it('writes 0.01 mm precision, dropping points that round onto the one before', () => {
+    expect(
+      polygonsPath([[{ x: 1 / 3, y: 0 }, { x: 0.334, y: 0.001 }, { x: 2, y: 2 / 3 }, { x: 0, y: 1 }]]),
+    ).toBe('M0.33 0L2 0.67 0 1Z');
+  });
+});
+
+describe('curvePath', () => {
+  it('draws the centerline as cubic Béziers from its start', () => {
+    const d = curvePath({
+      start: { x: 0.6, y: 12.5 },
+      segments: [
+        { c1: { x: 1, y: 12 }, c2: { x: 1.5, y: 1 / 3 }, to: { x: 2, y: 0.6 } },
+        { c1: { x: 2.5, y: 1 }, c2: { x: 3, y: 12 }, to: { x: 3.4, y: 12.5 } },
+      ],
+    });
+    expect(d).toBe('M0.6 12.5C1 12 1.5 0.33 2 0.6C2.5 1 3 12 3.4 12.5');
+  });
+});
+
+describe('editableSvg', () => {
+  const svg = editableSvg('M0 1C1 1 1 1 2 1', SIZE, 1.2);
+
+  it('is the centerline as a round-capped, round-joined black stroke on the Stencil canvas', () => {
+    expect(svg).toBe(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="80mm" height="25mm" viewBox="0 0 80 25">' +
+        '<path fill="none" stroke="#000" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" d="M0 1C1 1 1 1 2 1"/></svg>\n',
+    );
+  });
+});
+
 describe('stencilSvg', () => {
   const svg = stencilSvg('M0 0H1V1H0Z', SIZE);
 
@@ -57,8 +106,15 @@ describe('stencilSvg', () => {
 describe('stencilFileName', () => {
   it('names the Style and Print Size', () => {
     expect(stencilFileName('bars', SIZE)).toBe('soundstencil-bars-80x25mm.svg');
+    expect(stencilFileName('line', SIZE)).toBe('soundstencil-line-80x25mm.svg');
     expect(stencilFileName('bars', { widthMm: 75.5, heightMm: 20 })).toBe(
       'soundstencil-bars-75.5x20mm.svg',
     );
+  });
+});
+
+describe('editableFileName', () => {
+  it('marks the Line export as editable', () => {
+    expect(editableFileName(SIZE)).toBe('soundstencil-line-editable-80x25mm.svg');
   });
 });

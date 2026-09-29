@@ -9,8 +9,9 @@ import {
 import { DecodeError, decodeSource, type Decoder, type Source } from '../core/source';
 import { DEFAULT_FILL_RATIO, DEFAULT_ROUNDING } from '../core/bars';
 import { DEFAULT_BUCKETS, DEFAULT_FLOOR_MM, DEFAULT_GAMMA } from '../core/buckets';
+import { DEFAULT_SMOOTHING, DEFAULT_THICKNESS_MM } from '../core/line';
 import { DEFAULT_PRINT_SIZE } from '../core/print-size';
-import { barsStencil, type Design, type Stencil } from '../core/stencil';
+import { stencil as drawStencil, type Design, type Stencil, type SvgFile } from '../core/stencil';
 import { mm } from '../core/svg';
 import { waveformPeaks } from '../core/waveform';
 import './style.css';
@@ -51,20 +52,26 @@ const tightenButton = $<HTMLButtonElement>('#tighten');
 const undoButton = $<HTMLButtonElement>('#undo');
 const thresholdInput = $<HTMLInputElement>('#threshold');
 const designForm = $<HTMLFormElement>('#design');
+const styleRadios = designForm.elements.namedItem('style') as RadioNodeList;
 const designInputs = {
   count: $<HTMLInputElement>('#count'),
   gamma: $<HTMLInputElement>('#gamma'),
   floor: $<HTMLInputElement>('#floor'),
   reduction: $<HTMLSelectElement>('#reduction'),
+  thickness: $<HTMLInputElement>('#thickness'),
+  smoothing: $<HTMLInputElement>('#smoothing'),
   fill: $<HTMLInputElement>('#fill'),
   rounding: $<HTMLInputElement>('#rounding'),
   width: $<HTMLInputElement>('#width'),
   height: $<HTMLInputElement>('#height'),
 };
+const lineControls = $('#line-controls');
+const barsControls = $('#bars-controls');
 const preview = $('#preview');
 const previewPlaceholder = $('#preview-placeholder');
-const barInfo = $('#bar-info');
+const stencilInfo = $('#stencil-info');
 const downloadButton = $<HTMLButtonElement>('#download');
+const downloadEditableButton = $<HTMLButtonElement>('#download-editable');
 
 app.dataset.app = APP_NAME;
 
@@ -235,12 +242,16 @@ function numberFrom(input: HTMLInputElement, fallback: number): number {
 
 /** The design controls as the core takes them: fractions, and mm from cm. */
 function design(): Design {
-  const { count, gamma, floor, reduction, fill, rounding, width, height } = designInputs;
+  const { count, gamma, floor, reduction, thickness, smoothing, fill, rounding, width, height } =
+    designInputs;
   return {
+    style: styleRadios.value === 'bars' ? 'bars' : 'line',
     count: numberFrom(count, DEFAULT_BUCKETS),
     gamma: numberFrom(gamma, DEFAULT_GAMMA),
     floorMm: numberFrom(floor, DEFAULT_FLOOR_MM),
     reduction: reduction.value === 'rms' ? 'rms' : 'peak',
+    thicknessMm: numberFrom(thickness, DEFAULT_THICKNESS_MM),
+    smoothing: numberFrom(smoothing, DEFAULT_SMOOTHING * 100) / 100,
     fillRatio: numberFrom(fill, DEFAULT_FILL_RATIO * 100) / 100,
     rounding: numberFrom(rounding, DEFAULT_ROUNDING * 100) / 100,
     printSize: {
@@ -267,7 +278,7 @@ function currentStencil(): Stencil | undefined {
     !sameSelection(lastStencil.selection, selection) ||
     lastStencil.design !== key
   ) {
-    lastStencil = { source, selection, design: key, stencil: barsStencil(source.samples, selection, settings) };
+    lastStencil = { source, selection, design: key, stencil: drawStencil(source.samples, selection, settings) };
   }
   return lastStencil.stencil;
 }
@@ -275,16 +286,24 @@ function currentStencil(): Stencil | undefined {
 designForm.addEventListener('input', render);
 designForm.addEventListener('submit', (e) => e.preventDefault());
 
-downloadButton.addEventListener('click', () => {
-  const stencil = currentStencil();
-  if (!stencil) return;
-  const url = URL.createObjectURL(new Blob([stencil.svg], { type: 'image/svg+xml' }));
+function download({ svg, fileName }: SvgFile) {
+  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
   const link = document.createElement('a');
   link.href = url;
-  link.download = stencil.fileName;
+  link.download = fileName;
   link.click();
   // Some browsers start the download well after click() returns.
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+downloadButton.addEventListener('click', () => {
+  const stencil = currentStencil();
+  if (stencil) download(stencil);
+});
+
+downloadEditableButton.addEventListener('click', () => {
+  const stencil = currentStencil();
+  if (stencil?.style === 'line') download(stencil.editable);
 });
 
 undoButton.addEventListener('click', () => {
@@ -413,27 +432,52 @@ function render() {
   error.textContent = state.phase === 'error' ? state.message : '';
   editor.hidden = state.phase !== 'ready';
   if (state.phase === 'ready') renderSelection(state.source, state.edit);
-  renderPreview();
+  renderControls();
+  schedulePreview();
 }
 
 /** The markup in the preview, so an unchanged Stencil isn't re-parsed. */
 let shownSvg = '';
 
-function renderPreview() {
+const PERCENT_INPUTS = new Set(['fill', 'rounding', 'smoothing']);
+
+/** The design controls: cheap, so drawn straight away. */
+function renderControls() {
   for (const output of designForm.querySelectorAll('output')) {
     const input = designInputs[output.htmlFor.value as keyof typeof designInputs];
-    output.value = input.id === 'fill' || input.id === 'rounding' ? `${input.value}%` : input.value;
+    output.value = PERCENT_INPUTS.has(input.id) ? `${input.value}%` : input.value;
   }
+  const line = styleRadios.value !== 'bars';
+  lineControls.hidden = !line;
+  barsControls.hidden = line;
+  downloadEditableButton.hidden = !line;
+}
+
+// The Line Style's outline takes a noticeable fraction of a second at large
+// sizes, so the preview redraws at most once a frame however fast input comes.
+let previewFrame: number | undefined;
+
+function schedulePreview() {
+  previewFrame ??= requestAnimationFrame(() => {
+    previewFrame = undefined;
+    renderPreview();
+  });
+}
+
+function renderPreview() {
   const stencil = currentStencil();
   preview.hidden = !stencil;
   previewPlaceholder.hidden = !!stencil;
   downloadButton.disabled = !stencil;
+  downloadEditableButton.disabled = stencil?.style !== 'line';
   // Our own markup, built from numbers only.
   const svg = stencil?.svg ?? '';
   if (svg !== shownSvg) preview.innerHTML = shownSvg = svg;
-  barInfo.textContent = stencil
-    ? `Bars ${mm(stencil.geometry.barWidthMm)} mm wide, ${mm(stencil.geometry.gapMm)} mm apart`
-    : '';
+  stencilInfo.textContent = !stencil
+    ? ''
+    : stencil.style === 'bars'
+      ? `Bars ${mm(stencil.geometry.barWidthMm)} mm wide, ${mm(stencil.geometry.gapMm)} mm apart`
+      : `Line ${mm(stencil.thicknessMm)} mm thick`;
 }
 
 function renderSelection(source: Source, { selection, view, undo, playing }: Editing) {
