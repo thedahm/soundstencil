@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { centerline, FLATNESS_MM, flatten, outline, type Point } from '../src/core/line';
+import { area, isSimple } from './fixtures/polygon';
 
 const SIZE = { widthMm: 10, heightMm: 25 };
 const round = (n: number) => Math.round(n * 1e6) / 1e6;
@@ -32,14 +33,36 @@ describe('centerline', () => {
   });
 
   it('is a Catmull-Rom spline at smoothing 1', () => {
-    // From (2, 0.5) to (5, 18.5), neighbours (0.5, 12.5) and (8, 0.5):
-    // c1 = p1 + (p2 − p0) / 6, c2 = p2 − (p3 − p1) / 6.
+    // Anchors (0.5, 12.5), (2, 6.5), (5, 24.5). The first span, from the start
+    // (its own "before") to (2, 6.5):
+    // c1 = p0 + (p1 − p0) / 6, c2 = p1 − (p2 − p0) / 6.
+    const { segments } = centerline([12.5, 25, 12.5], SIZE, { thicknessMm: 1, smoothing: 1 });
+    const first = segments[0]!;
+    expect(first.c1.x).toBeCloseTo(0.75);
+    expect(first.c1.y).toBeCloseTo(11.5);
+    expect(first.c2.x).toBeCloseTo(1.25);
+    expect(first.c2.y).toBeCloseTo(4.5);
+  });
+
+  it('stays smooth through a peak at the edge: the tangent flattens rather than kinks', () => {
+    // (2, 0.5) is on the top edge. Its Catmull-Rom tangent points down-right,
+    // so the incoming handle would leave the box; instead the tangent loses
+    // its vertical part on both sides.
     const { segments } = centerline(heights, SIZE, { thicknessMm: 1, smoothing: 1 });
-    const second = segments[1]!;
-    expect(second.c1.x).toBeCloseTo(2.75);
-    expect(second.c1.y).toBeCloseTo(1.5);
-    expect(second.c2.x).toBeCloseTo(4);
-    expect(second.c2.y).toBeCloseTo(18.5);
+    const [into, out] = [segments[0]!.c2, segments[1]!.c1];
+    expect(into.y).toBeCloseTo(0.5);
+    expect(out.y).toBeCloseTo(0.5);
+    expect(2 - into.x).toBeCloseTo(out.x - 2);
+    expect(out.x).toBeCloseTo(2.75);
+  });
+
+  it('keeps the handles either side of every anchor opposite and equal', () => {
+    const { segments } = centerline([25, 1, 25, 1, 25, 3, 25], SIZE, { thicknessMm: 2, smoothing: 1 });
+    for (let i = 0; i < segments.length - 1; i++) {
+      const [into, at, out] = [segments[i]!.c2, segments[i]!.to, segments[i + 1]!.c1];
+      expect(at.x - into.x).toBeCloseTo(out.x - at.x);
+      expect(at.y - into.y).toBeCloseTo(out.y - at.y);
+    }
   });
 
   it('keeps every control point, and so the whole curve, where the stroke fits the Print Size', () => {
@@ -108,33 +131,6 @@ function distanceToPolyline(p: Point, line: readonly Point[]): number {
   return best;
 }
 
-/** Whether segments ab and cd properly cross. */
-function crosses(a: Point, b: Point, c: Point, d: Point): boolean {
-  const side = (p: Point, q: Point, r: Point) =>
-    Math.sign((q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x));
-  return side(a, b, c) * side(a, b, d) < 0 && side(c, d, a) * side(c, d, b) < 0;
-}
-
-/** No two edges cross, checked pair by pair. */
-function isSimple(polygon: readonly Point[]): boolean {
-  const n = polygon.length;
-  for (let i = 0; i < n; i++) {
-    for (let j = i + 2; j < n; j++) {
-      if (i === 0 && j === n - 1) continue; // Neighbours across the closing edge.
-      const [a, b, c, d] = [polygon[i]!, polygon[(i + 1) % n]!, polygon[j]!, polygon[(j + 1) % n]!];
-      if (crosses(a, b, c, d)) return false;
-    }
-  }
-  return true;
-}
-
-const area = (polygon: readonly Point[]) =>
-  Math.abs(
-    polygon.reduce((sum, a, i) => {
-      const b = polygon[(i + 1) % polygon.length]!;
-      return sum + a.x * b.y - b.x * a.y;
-    }, 0) / 2,
-  );
 
 describe('outline', () => {
   it('turns a sharp transient into a single non-self-intersecting polygon', () => {

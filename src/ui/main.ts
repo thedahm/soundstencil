@@ -11,7 +11,7 @@ import { DEFAULT_FILL_RATIO, DEFAULT_ROUNDING } from '../core/bars';
 import { DEFAULT_BUCKETS, DEFAULT_FLOOR_MM, DEFAULT_GAMMA } from '../core/buckets';
 import { DEFAULT_SMOOTHING, DEFAULT_THICKNESS_MM } from '../core/line';
 import { DEFAULT_PRINT_SIZE } from '../core/print-size';
-import { stencil as drawStencil, type Design, type Stencil } from '../core/stencil';
+import { stencil as drawStencil, type Design, type Stencil, type SvgFile } from '../core/stencil';
 import { mm } from '../core/svg';
 import { waveformPeaks } from '../core/waveform';
 import './style.css';
@@ -286,7 +286,7 @@ function currentStencil(): Stencil | undefined {
 designForm.addEventListener('input', render);
 designForm.addEventListener('submit', (e) => e.preventDefault());
 
-function download({ svg, fileName }: { svg: string; fileName: string }) {
+function download({ svg, fileName }: SvgFile) {
   const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
   const link = document.createElement('a');
   link.href = url;

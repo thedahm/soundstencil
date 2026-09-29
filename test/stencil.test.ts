@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { tighten } from '../src/core/selection';
 import { decodeSource } from '../src/core/source';
 import { barsStencil, lineStencil, stencil } from '../src/core/stencil';
+import { isSimple } from './fixtures/polygon';
 import { wavDecoder } from './fixtures/wav';
 
 const bark = async () => {
@@ -66,6 +67,8 @@ describe('lineStencil', () => {
     const d = paths[0]![1]!;
     expect(d.match(/M/g)).toHaveLength(1);
     const points = coordinates(d);
+    // Still simple once rounded to 0.01 mm.
+    expect(isSimple(points.map(([x, y]) => ({ x, y })))).toBe(true);
     expect(Math.min(...points.map(([x]) => x))).toBe(0);
     expect(Math.max(...points.map(([x]) => x))).toBe(80);
     // The loudest Bucket reaches max height on one side.

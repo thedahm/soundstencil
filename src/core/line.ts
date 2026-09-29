@@ -47,8 +47,9 @@ export const lineThickness = ({ heightMm }: PrintSize, thicknessMm = DEFAULT_THI
  * loudest Bucket's edge reaches max height.
  *
  * Each span is a cubic Bézier: the Catmull-Rom tangents scaled by smoothing.
- * Control points are clamped into the inset box, and a Bézier stays inside its
- * control points, so an overshooting tangent never pushes the curve out.
+ * Handles are shortened to keep every control point in the inset box, and a
+ * Bézier stays inside its control points, so an overshooting tangent never
+ * pushes the curve out.
  */
 export function centerline(
   heightsMm: readonly number[],
@@ -71,19 +72,39 @@ export function centerline(
     })),
     { x: right, y: mid },
   ];
-  const inside = ({ x, y }: Point): Point => ({ x: clamp(x, left, right), y: clamp(y, top, bottom) });
-  const segments = anchors.slice(1).map((to, i): Segment => {
-    const from = anchors[i]!;
-    const before = anchors[i - 1] ?? from;
-    const after = anchors[i + 2] ?? to;
+  // Each anchor's handle: the offset to its outgoing control point, and
+  // negated, to its incoming one. Shared, so the curve stays smooth. The ends
+  // have one handle each, pointing a fraction of the way to an anchor inside
+  // the box, so only the anchors between need shortening.
+  const handles = anchors.map((p, i): Point => {
+    const before = anchors[i - 1] ?? p;
+    const after = anchors[i + 1] ?? p;
+    if (i === 0 || i === anchors.length - 1) {
+      return { x: (s * (after.x - before.x)) / 6, y: (s * (after.y - before.y)) / 6 };
+    }
     return {
-      c1: inside({ x: from.x + (s * (to.x - before.x)) / 6, y: from.y + (s * (to.y - before.y)) / 6 }),
-      c2: inside({ x: to.x - (s * (after.x - from.x)) / 6, y: to.y - (s * (after.y - from.y)) / 6 }),
+      x: shrinkInto((s * (after.x - before.x)) / 6, p.x, left, right),
+      y: shrinkInto((s * (after.y - before.y)) / 6, p.y, top, bottom),
+    };
+  });
+  const segments = anchors.slice(1).map((to, i): Segment => {
+    const [from, out, into] = [anchors[i]!, handles[i]!, handles[i + 1]!];
+    return {
+      c1: { x: from.x + out.x, y: from.y + out.y },
+      c2: { x: to.x - into.x, y: to.y - into.y },
       to,
     };
   });
   return { start: anchors[0]!, segments };
 }
+
+/**
+ * A handle component d shortened so that p ± d both stay in lo..hi. Doing this
+ * per anchor, not per control point, keeps the handles either side of an
+ * anchor opposite: a peak on the edge gets a flat tangent instead of a kink.
+ */
+const shrinkInto = (d: number, p: number, lo: number, hi: number) =>
+  Math.sign(d) * Math.min(Math.abs(d), Math.max(0, p - lo), Math.max(0, hi - p));
 
 /** How far the flattened polyline may stray from the curve, in mm. */
 export const FLATNESS_MM = 0.01;
@@ -126,7 +147,7 @@ const half = (a: Point, b: Point): Point => ({ x: (a.x + b.x) / 2, y: (a.y + b.y
 function fromChord(p: Point, a: Point, b: Point): number {
   const [dx, dy] = [b.x - a.x, b.y - a.y];
   const lengthSq = dx * dx + dy * dy;
-  const t = lengthSq ? Math.min(1, Math.max(0, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSq)) : 0;
+  const t = lengthSq ? clamp(((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSq, 0, 1) : 0;
   return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy);
 }
 

@@ -22,20 +22,22 @@ export interface Design extends BucketOptions, CompressionOptions, BarsOptions, 
   printSize?: PrintSize;
 }
 
-export interface BarsStencil {
-  style: 'bars';
-  geometry: BarsGeometry;
+/** An SVG ready to download. */
+export interface SvgFile {
   svg: string;
   fileName: string;
 }
 
-export interface LineStencil {
+export interface BarsStencil extends SvgFile {
+  style: 'bars';
+  geometry: BarsGeometry;
+}
+
+export interface LineStencil extends SvgFile {
   style: 'line';
   /** As drawn: the asked-for thickness, clamped. */
   thicknessMm: number;
-  svg: string;
-  fileName: string;
-  editable: { svg: string; fileName: string };
+  editable: SvgFile;
 }
 
 export type Stencil = BarsStencil | LineStencil;
