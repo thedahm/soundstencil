@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 
 const bark = new URL('../test/fixtures/bark.wav', import.meta.url).pathname;
 
-test('load a clip, drag a Selection, export a Stencil SVG', async ({ page }) => {
+test('load a Source, drag a Selection, export a Stencil SVG', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('footer')).toContainText('never leaves your device');
 
@@ -11,7 +11,7 @@ test('load a clip, drag a Selection, export a Stencil SVG', async ({ page }) => 
   const waveform = page.locator('#waveform');
   await expect(waveform).toBeVisible();
 
-  // Drag across the bark (about 0.25 s to 0.65 s of 0.8 s).
+  // Drag across the bark, from a quarter of the way in to past its tail.
   const box = (await waveform.boundingBox())!;
   const y = box.y + box.height / 2;
   await page.mouse.move(box.x + box.width * 0.25, y);

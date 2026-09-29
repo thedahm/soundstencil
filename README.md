@@ -11,11 +11,11 @@ Pick a video or audio file, select the sound, choose a style, and export a black
 ## Use it
 
 1. **Choose a file.** Any video or audio your browser plays: a phone video of your dog, a voice memo. On a phone this opens your camera roll.
-2. **Select the sound.** Drag across the waveform, then loop-play to check you've got the whole thing. Drag the handles (or focus one and use the arrow keys) to adjust, and zoom in for precision. **Tighten** trims silence off both edges; Undo puts it back.
-3. **Pick a Style.** Line (the default) is a smooth oscillating curve. Bars is one rounded bar per slice of sound. Fewer Buckets gives a bolder, simpler design.
+2. **Select the sound.** Drag across the waveform, then loop-play to check you've got the whole thing. Drag the handles (or focus one and use the arrow keys) to adjust, and zoom in for precision. **Tighten** moves the Selection edges in past the silence; Undo puts them back.
+3. **Pick a Style.** Line (the default) is a smooth oscillating curve. Bars is one rounded bar per Bucket (a slice of the sound). Fewer Buckets gives a bolder, simpler design.
 4. **Set the Print Size** to how big the tattoo will be, in cm or inches.
 5. **Check for Thin Spots.** Anything outlined in red is thinner than 1 mm at that size, which can blur as a tattoo heals. Fewer Buckets, a thinner Line, or a bigger Print Size helps. It's a warning; export always works.
-6. **Download.** Stencil SVG for the artist, PNG if they'd rather have an image, Editable SVG (Line only) if they want to restyle the curve themselves.
+6. **Download.** Stencil SVG for the artist, PNG if they'd rather have an image (transparent, or tick White background), Editable SVG (Line only) if they want to restyle the curve themselves.
 
 ### Taking it to your artist
 
@@ -32,7 +32,7 @@ The Content-Security-Policy in [`public/_headers`](public/_headers) enforces tha
 
 The one exception is the ffmpeg fallback: when the browser can't decode a file, it downloads the ffmpeg codec (about 30 MB) from one pinned jsDelivr `@ffmpeg/core` URL, the only other origin the CSP allows. Only the codec is downloaded; your file stays on your device and is converted there (ADR-0001).
 
-A footer on the page says the same and links to the CSP.
+A footer on the page states this and links to the CSP.
 
 ## Develop
 
@@ -75,9 +75,9 @@ Issues and PRs welcome. Before opening a PR:
 
 - `npm test`, `npm run typecheck`, and `npm run test:e2e` pass.
 - New pipeline logic goes in `src/core/` with a Vitest test first. Snapshot SVGs in `test/__snapshots__/` change only on purpose; say why in the PR.
-- Use the words in [`CONTEXT.md`](CONTEXT.md) (Selection, Bucket, Style, Print Size, Thin Spot). Record decisions that are hard to reverse in `docs/adr/`.
+- Use the words in [`CONTEXT.md`](CONTEXT.md) (e.g. Source, Selection, Bucket, Style, Print Size, Thin Spot). Record decisions that are hard to reverse in `docs/adr/`.
 - Nothing may reach another origin. `test/privacy.test.ts` and the CSP will stop you; if you think you need to, open an issue first.
-- Out of scope for v1 (see [issue #1](https://github.com/thedahm/soundstencil/issues/1)): accounts, uploads, saved projects, noise reduction.
+- Out of scope for v1 (see [issue #1](https://github.com/thedahm/soundstencil/issues/1)): text overlay (planned for v1.1), noise reduction, accounts, saved projects, QR playback, screen calibration, filled-envelope style.
 
 ## License
 

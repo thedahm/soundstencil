@@ -39,5 +39,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report
+          name: playwright-test-results
           path: test-results/
