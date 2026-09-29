@@ -48,6 +48,10 @@ _Avoid_: error, violation, minimum
 The primary export: black fills only, one compound path, no strokes, sized in mm at Print Size. What a tattoo artist can print or trace directly.
 _Avoid_: vector, outline
 
+**PNG**:
+The Stencil SVG rasterized at 600 DPI of Print Size, with the DPI written in so printing at 100% gives true size. Transparent by default, white background optional.
+_Avoid_: bitmap, image export
+
 **Editable SVG**:
 The Line Style's secondary export: the raw centerline as a stroke, for an artist who wants to restyle it. Not stencil-ready.
 _Avoid_: source SVG, raw export

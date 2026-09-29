@@ -29,6 +29,10 @@ export interface SvgFile {
 }
 
 interface Drawn extends SvgFile {
+  /** What the Stencil SVG is sized to. */
+  printSize: PrintSize;
+  /** The Stencil SVG's path data, for drawing it another way (the PNG). */
+  d: string;
   /** The filled shapes the Stencil SVG draws, in mm: what Thin Spots are found in. */
   ink: Point[][];
 }
@@ -66,11 +70,14 @@ export function barsStencil(
 ): BarsStencil {
   const { printSize, heightsMm } = heights(samples, selection, design);
   const geometry = bars(heightsMm, printSize, design);
+  const d = barsPath(geometry.bars);
   return {
     style: 'bars',
+    printSize,
     geometry,
     ink: geometry.bars.map(barPolygon),
-    svg: stencilSvg(barsPath(geometry.bars), printSize),
+    d,
+    svg: stencilSvg(d, printSize),
     fileName: stencilFileName('bars', printSize),
   };
 }
@@ -84,11 +91,14 @@ export function lineStencil(
   const thicknessMm = lineThickness(printSize, design.thicknessMm);
   const curve = centerline(heightsMm, printSize, { ...design, thicknessMm });
   const ink = outline(flatten(curve), thicknessMm);
+  const d = polygonsPath(ink);
   return {
     style: 'line',
+    printSize,
     thicknessMm,
     ink,
-    svg: stencilSvg(polygonsPath(ink), printSize),
+    d,
+    svg: stencilSvg(d, printSize),
     fileName: stencilFileName('line', printSize),
     editable: {
       svg: editableSvg(curvePath(curve), printSize, thicknessMm),

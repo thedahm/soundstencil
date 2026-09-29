@@ -5,6 +5,7 @@ import {
   editableFileName,
   editableSvg,
   polygonsPath,
+  rasterSvg,
   stencilFileName,
   stencilSvg,
 } from '../src/core/svg';
@@ -116,5 +117,22 @@ describe('stencilFileName', () => {
 describe('editableFileName', () => {
   it('marks the Line export as editable', () => {
     expect(editableFileName(SIZE)).toBe('soundstencil-line-editable-80x25mm.svg');
+  });
+});
+
+describe('rasterSvg', () => {
+  const pixels = { width: 1890, height: 591 };
+
+  it('sizes the Stencil in pixels, stretching the mm viewBox to fill them exactly', () => {
+    expect(rasterSvg('M0 0H1V1Z', SIZE, pixels, false)).toBe(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="1890" height="591" viewBox="0 0 80 25" ' +
+        'preserveAspectRatio="none"><path fill="#000" d="M0 0H1V1Z"/></svg>\n',
+    );
+  });
+
+  it('puts a white rectangle behind the ink for a white background', () => {
+    expect(rasterSvg('M0 0H1V1Z', SIZE, pixels, true)).toContain(
+      'preserveAspectRatio="none"><rect width="80" height="25" fill="#fff"/><path fill="#000"',
+    );
   });
 });

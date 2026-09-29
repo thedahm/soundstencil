@@ -10,9 +10,10 @@ import { DecodeError, decodeSource, type Decoder, type Source } from '../core/so
 import { DEFAULT_FILL_RATIO, DEFAULT_ROUNDING } from '../core/bars';
 import { DEFAULT_BUCKETS, DEFAULT_FLOOR_MM, DEFAULT_GAMMA } from '../core/buckets';
 import { DEFAULT_SMOOTHING, DEFAULT_THICKNESS_MM } from '../core/line';
+import { pngFileName, pngPixels, PNG_DPI, withDpi } from '../core/png';
 import { DEFAULT_PRINT_SIZE } from '../core/print-size';
 import { stencil as drawStencil, type Design, type Stencil, type SvgFile } from '../core/stencil';
-import { mm, type StyleName } from '../core/svg';
+import { mm, rasterSvg, type StyleName } from '../core/svg';
 import { DEFAULT_THIN_SPOT_MM, thinSpots, type ThinSpot } from '../core/thin-spots';
 import { defaultUnit, formatLength, fromMm, roundTo, scaleBarMm, toMm, type Unit } from '../core/units';
 import { waveformPeaks } from '../core/waveform';
@@ -87,6 +88,9 @@ const previewPlaceholder = $('#preview-placeholder');
 const stencilInfo = $('#stencil-info');
 const downloadButton = $<HTMLButtonElement>('#download');
 const downloadEditableButton = $<HTMLButtonElement>('#download-editable');
+const downloadPngButton = $<HTMLButtonElement>('#download-png');
+const whiteBackground = $<HTMLInputElement>('#png-white');
+const pngError = $('#png-error');
 
 app.dataset.app = APP_NAME;
 
@@ -384,8 +388,8 @@ function currentThinSpots(stencil: Stencil): ThinSpot[] {
 designForm.addEventListener('input', render);
 designForm.addEventListener('submit', (e) => e.preventDefault());
 
-function download({ svg, fileName }: SvgFile) {
-  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+function download(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = fileName;
@@ -394,14 +398,57 @@ function download({ svg, fileName }: SvgFile) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+const downloadSvg = ({ svg, fileName }: SvgFile) =>
+  download(new Blob([svg], { type: 'image/svg+xml' }), fileName);
+
+/** The Stencil SVG as a PNG at 600 DPI of Print Size, DPI written in. */
+async function rasterize({ d, printSize }: Stencil, white: boolean): Promise<Uint8Array<ArrayBuffer>> {
+  const pixels = pngPixels(printSize);
+  const url = URL.createObjectURL(new Blob([rasterSvg(d, printSize, pixels, white)], { type: 'image/svg+xml' }));
+  try {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = pixels.width;
+    canvas.height = pixels.height;
+    // Null past the browser's canvas limit (iOS Safari: about 16.7 megapixels).
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Canvas too large');
+    context.drawImage(image, 0, 0, pixels.width, pixels.height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) throw new Error('Canvas too large to encode');
+    return withDpi(new Uint8Array(await blob.arrayBuffer()), PNG_DPI);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 downloadButton.addEventListener('click', () => {
   const stencil = currentStencil();
-  if (stencil) download(stencil);
+  if (stencil) downloadSvg(stencil);
 });
 
 downloadEditableButton.addEventListener('click', () => {
   const stencil = currentStencil();
-  if (stencil?.style === 'line') download(stencil.editable);
+  if (stencil?.style === 'line') downloadSvg(stencil.editable);
+});
+
+downloadPngButton.addEventListener('click', async () => {
+  const stencil = currentStencil();
+  if (!stencil) return;
+  downloadPngButton.disabled = true;
+  pngError.hidden = true;
+  try {
+    const png = await rasterize(stencil, whiteBackground.checked);
+    download(new Blob([png], { type: 'image/png' }), pngFileName(stencil.style, stencil.printSize));
+  } catch {
+    // Almost always a canvas size limit, which varies by browser.
+    pngError.textContent = 'Could not make the PNG. Try a smaller Print Size, or use the SVG.';
+    pngError.hidden = false;
+  } finally {
+    schedulePreview();
+  }
 });
 
 undoButton.addEventListener('click', () => {
@@ -568,6 +615,7 @@ function renderPreview() {
   previewPlaceholder.hidden = !!stencil;
   downloadButton.disabled = !stencil;
   downloadEditableButton.disabled = stencil?.style !== 'line';
+  downloadPngButton.disabled = !stencil;
   // Our own markup, built from numbers only.
   const svg = stencil?.svg ?? '';
   if (svg !== shownSvg) previewSvg.innerHTML = shownSvg = svg;
@@ -596,7 +644,7 @@ function renderMeasurements(stencil: Stencil | undefined) {
   scaleBar.style.width = `${(scaleMm / widthMm) * 100}%`;
   scaleLabel.textContent = formatLength(scaleMm, unit);
   sizeHint.textContent = stencil
-    ? `Check size: print the SVG at 100% (turn off "fit to page"). It should measure ${width} wide.`
+    ? `Check size: print the SVG or PNG at 100% (turn off "fit to page"). It should measure ${width} wide.`
     : '';
 
   const spots = stencil ? currentThinSpots(stencil) : [];
