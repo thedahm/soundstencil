@@ -259,6 +259,17 @@ p {
   accent-color: var(--accent);
 }
 
+.field input[type='radio'] {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.field:has(input[type='radio']) {
+  color: var(--fg);
+}
+
 .field output {
   min-width: 2.5rem;
   color: var(--fg);
