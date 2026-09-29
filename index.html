@@ -22,8 +22,26 @@
           </label>
           <p id="status" class="status" role="status"></p>
           <p id="error" class="error" role="alert" hidden></p>
-          <div id="waveform" class="waveform" hidden>
-            <canvas aria-label="Waveform of the whole file" role="img"></canvas>
+          <div id="editor" hidden>
+            <div id="waveform" class="waveform">
+              <canvas aria-label="Waveform" role="img"></canvas>
+              <div id="selection" class="selection" hidden></div>
+              <div id="playhead" class="playhead" hidden></div>
+              <div id="handle-start" class="handle" role="slider" tabindex="0" aria-label="Selection start" hidden></div>
+              <div id="handle-end" class="handle" role="slider" tabindex="0" aria-label="Selection end" hidden></div>
+            </div>
+            <p id="selection-info" class="status"></p>
+            <div class="controls">
+              <button id="play" class="button" type="button">Loop play</button>
+              <button id="zoom" class="button" type="button">Zoom to Selection</button>
+              <button id="tighten" class="button" type="button">Tighten</button>
+              <button id="undo" class="button" type="button">Undo</button>
+              <label class="field">
+                Tighten threshold
+                <input id="threshold" type="number" min="-60" max="-6" step="1" value="-30" />
+                dB
+              </label>
+            </div>
           </div>
         </section>
         <section class="pane" aria-labelledby="preview-heading">

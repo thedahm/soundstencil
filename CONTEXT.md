@@ -15,7 +15,7 @@ The user-chosen time range of the Source that becomes the tattoo. Only the Selec
 _Avoid_: clip, region, trim
 
 **Tighten**:
-The explicit, undoable action that moves Selection edges inward to where the sound rises above a threshold relative to the Selection's own peak. Never automatic.
+The explicit, undoable action that moves Selection edges inward to where the sound rises above a threshold relative to the Selection's own peak (the loudest short-window RMS, not the loudest sample). Never automatic.
 _Avoid_: auto-trim, auto-crop
 
 **Bucket**:
