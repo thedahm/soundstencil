@@ -13,6 +13,8 @@ import { DEFAULT_SMOOTHING, DEFAULT_THICKNESS_MM } from '../core/line';
 import { DEFAULT_PRINT_SIZE } from '../core/print-size';
 import { stencil as drawStencil, type Design, type Stencil, type SvgFile } from '../core/stencil';
 import { mm } from '../core/svg';
+import { DEFAULT_THIN_SPOT_MM, thinSpots, type ThinSpot } from '../core/thin-spots';
+import { defaultUnit, formatLength, fromMm, scaleBarMm, toMm, type Unit } from '../core/units';
 import { waveformPeaks } from '../core/waveform';
 import './style.css';
 
@@ -62,12 +64,25 @@ const designInputs = {
   smoothing: $<HTMLInputElement>('#smoothing'),
   fill: $<HTMLInputElement>('#fill'),
   rounding: $<HTMLInputElement>('#rounding'),
+};
+const unitRadios = designForm.elements.namedItem('unit') as RadioNodeList;
+/** Lengths shown in the active unit. */
+const lengthInputs = {
   width: $<HTMLInputElement>('#width'),
   height: $<HTMLInputElement>('#height'),
+  thin: $<HTMLInputElement>('#thin'),
 };
 const lineControls = $('#line-controls');
 const barsControls = $('#bars-controls');
 const preview = $('#preview');
+const previewSvg = $('#preview-svg');
+const thinOverlay = document.querySelector<SVGSVGElement>('#thin-overlay')!;
+const dimWidth = $('#dim-width');
+const dimHeight = $('#dim-height');
+const scaleBar = $('#scale-bar');
+const scaleLabel = $('#scale-label');
+const thinNote = $('#thin-note');
+const sizeHint = $('#size-hint');
 const previewPlaceholder = $('#preview-placeholder');
 const stencilInfo = $('#stencil-info');
 const downloadButton = $<HTMLButtonElement>('#download');
@@ -240,10 +255,80 @@ function numberFrom(input: HTMLInputElement, fallback: number): number {
   return Number.isFinite(value) ? clamp(value, min, max) : fallback;
 }
 
-/** The design controls as the core takes them: fractions, and mm from cm. */
+// Units: the Print Size and Thin Spot threshold are shown in cm or inches but
+// kept in mm, so switching units never nudges them by rounding.
+
+const UNIT_KEY = 'soundstencil.unit';
+
+/** The remembered unit, or the locale's. Storage may be missing or blocked. */
+function initialUnit(): Unit {
+  try {
+    const stored = localStorage.getItem(UNIT_KEY);
+    if (stored === 'cm' || stored === 'in') return stored;
+  } catch {
+    // Fall through to the locale.
+  }
+  return defaultUnit(navigator.languages?.length ? navigator.languages : [navigator.language]);
+}
+
+let unit = initialUnit();
+
+/** Each length in mm, with its range; inputs show them in the active unit. */
+const lengths: Record<keyof typeof lengthInputs, { mm: number; min: number; max: number }> = {
+  width: { mm: DEFAULT_PRINT_SIZE.widthMm, min: 10, max: 500 },
+  height: { mm: DEFAULT_PRINT_SIZE.heightMm, min: 5, max: 300 },
+  thin: { mm: DEFAULT_THIN_SPOT_MM, min: 0, max: 5 },
+};
+
+/** Steps and shown precision per unit: fine for the threshold, coarser for the Print Size. */
+const STEP: Record<Unit, { size: number; thin: number }> = {
+  cm: { size: 0.1, thin: 0.01 },
+  in: { size: 0.05, thin: 0.005 },
+};
+
+/** Show every length in the active unit. */
+function showLengths() {
+  for (const [name, input] of Object.entries(lengthInputs) as [keyof typeof lengths, HTMLInputElement][]) {
+    const { mm: value, min, max } = lengths[name];
+    const step = name === 'thin' ? STEP[unit].thin : STEP[unit].size;
+    const digits = name === 'thin' && unit === 'in' ? 1000 : 100;
+    input.step = String(step);
+    input.min = String(Math.floor(fromMm(min, unit) * digits) / digits);
+    input.max = String(Math.ceil(fromMm(max, unit) * digits) / digits);
+    input.value = String(Math.round(fromMm(value, unit) * digits) / digits);
+  }
+  for (const label of designForm.querySelectorAll('.unit')) label.textContent = unit;
+  for (const radio of unitRadios) (radio as HTMLInputElement).checked = (radio as HTMLInputElement).value === unit;
+}
+
+for (const [name, input] of Object.entries(lengthInputs) as [keyof typeof lengths, HTMLInputElement][]) {
+  // Runs before the form's own input listener re-renders.
+  input.addEventListener('input', () => {
+    const value = input.valueAsNumber;
+    const { min, max } = lengths[name];
+    if (Number.isFinite(value)) lengths[name].mm = clamp(toMm(value, unit), min, max);
+  });
+  // Show the clamped value once the user is done typing.
+  input.addEventListener('change', showLengths);
+}
+
+for (const radio of unitRadios) {
+  radio.addEventListener('change', () => {
+    unit = unitRadios.value === 'in' ? 'in' : 'cm';
+    try {
+      localStorage.setItem(UNIT_KEY, unit);
+    } catch {
+      // Not remembered this time; everything else still works.
+    }
+    showLengths();
+    // The form's input listener already rendered, before this change event.
+    render();
+  });
+}
+
+/** The design controls as the core takes them: fractions, and mm. */
 function design(): Design {
-  const { count, gamma, floor, reduction, thickness, smoothing, fill, rounding, width, height } =
-    designInputs;
+  const { count, gamma, floor, reduction, thickness, smoothing, fill, rounding } = designInputs;
   return {
     style: styleRadios.value === 'bars' ? 'bars' : 'line',
     count: numberFrom(count, DEFAULT_BUCKETS),
@@ -254,10 +339,7 @@ function design(): Design {
     smoothing: numberFrom(smoothing, DEFAULT_SMOOTHING * 100) / 100,
     fillRatio: numberFrom(fill, DEFAULT_FILL_RATIO * 100) / 100,
     rounding: numberFrom(rounding, DEFAULT_ROUNDING * 100) / 100,
-    printSize: {
-      widthMm: numberFrom(width, DEFAULT_PRINT_SIZE.widthMm / 10) * 10,
-      heightMm: numberFrom(height, DEFAULT_PRINT_SIZE.heightMm / 10) * 10,
-    },
+    printSize: { widthMm: lengths.width.mm, heightMm: lengths.height.mm },
   };
 }
 
@@ -281,6 +363,17 @@ function currentStencil(): Stencil | undefined {
     lastStencil = { source, selection, design: key, stencil: drawStencil(source.samples, selection, settings) };
   }
   return lastStencil.stencil;
+}
+
+let lastThinSpots: { stencil: Stencil; thresholdMm: number; spots: ThinSpot[] } | undefined;
+
+/** The Stencil's Thin Spots at the current threshold, remembered like the Stencil. */
+function currentThinSpots(stencil: Stencil): ThinSpot[] {
+  const thresholdMm = lengths.thin.mm;
+  if (lastThinSpots?.stencil !== stencil || lastThinSpots.thresholdMm !== thresholdMm) {
+    lastThinSpots = { stencil, thresholdMm, spots: thinSpots(stencil.ink, thresholdMm) };
+  }
+  return lastThinSpots.spots;
 }
 
 designForm.addEventListener('input', render);
@@ -472,12 +565,58 @@ function renderPreview() {
   downloadEditableButton.disabled = stencil?.style !== 'line';
   // Our own markup, built from numbers only.
   const svg = stencil?.svg ?? '';
-  if (svg !== shownSvg) preview.innerHTML = shownSvg = svg;
+  if (svg !== shownSvg) previewSvg.innerHTML = shownSvg = svg;
+  renderMeasurements(stencil);
   stencilInfo.textContent = !stencil
     ? ''
     : stencil.style === 'bars'
       ? `Bars ${mm(stencil.geometry.barWidthMm)} mm wide, ${mm(stencil.geometry.gapMm)} mm apart`
       : `Line ${mm(stencil.thicknessMm)} mm thick`;
+}
+
+/**
+ * Dimension labels, the scale bar, Thin Spots, and the print check. The
+ * preview is not true size (CSS units aren't physical), so the scale bar is
+ * drawn at the preview's scale, and true size is checked on paper.
+ */
+function renderMeasurements(stencil: Stencil | undefined) {
+  const { widthMm, heightMm } = design().printSize!;
+  const [width, height] = [formatLength(widthMm, unit), formatLength(heightMm, unit)];
+  dimWidth.textContent = width;
+  dimHeight.textContent = height;
+  previewSvg.setAttribute('aria-label', `Stencil preview, ${width} wide and ${height} tall`);
+  scaleBar.style.width = `${(scaleBarMm(unit) / widthMm) * 100}%`;
+  scaleLabel.textContent = formatLength(scaleBarMm(unit), unit);
+  sizeHint.textContent = stencil
+    ? `Check size: print the SVG at 100% (turn off "fit to page"). It should measure ${width} wide.`
+    : '';
+
+  const spots = stencil ? currentThinSpots(stencil) : [];
+  thinOverlay.setAttribute('viewBox', `0 0 ${mm(widthMm)} ${mm(heightMm)}`);
+  // An outline around each spot, a little bigger than it so thin ones still show.
+  const pad = 0.4;
+  thinOverlay.innerHTML = spots
+    .map(({ box: { x, y, width: w, height: h } }) =>
+      `<rect x="${mm(x - pad)}" y="${mm(y - pad)}" width="${mm(w + 2 * pad)}" height="${mm(h + 2 * pad)}" rx="${pad}"/>`,
+    )
+    .join('');
+  thinNote.hidden = spots.length === 0;
+  thinNote.textContent = spots.length ? thinSpotNote(spots) : '';
+}
+
+function thinSpotNote(spots: ThinSpot[]): string {
+  const threshold = formatLength(lengths.thin.mm, unit);
+  const gaps = spots.filter((s) => s.kind === 'gap').length;
+  const thin = spots.length - gaps;
+  const parts = [
+    thin && `${thin} ${thin === 1 ? 'part' : 'parts'} thinner than ${threshold}`,
+    gaps && `${gaps} ${gaps === 1 ? 'gap' : 'gaps'} narrower than ${threshold}`,
+  ].filter(Boolean);
+  return (
+    `Thin Spots, outlined in red: ${parts.join(' and ')}. ` +
+    'Fine detail can blur or fade as a tattoo heals and ages. ' +
+    'Fewer Buckets or a larger Print Size give it more room. Export still works.'
+  );
 }
 
 function renderSelection(source: Source, { selection, view, undo, playing }: Editing) {
@@ -552,6 +691,7 @@ function drawWaveform() {
   }
 }
 
+showLengths();
 new ResizeObserver(drawWaveform).observe(canvas);
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', drawWaveform);
 render();

@@ -278,16 +278,151 @@ p {
 
 /* The Stencil on paper, black on white in either color scheme. */
 .preview {
+  --paper-ink: #1c1917;
+  --paper-muted: #57534e;
+  --thin: #dc2626;
   background: #fff;
+  color: var(--paper-muted);
   border: 1px solid var(--border);
   border-radius: 0.5rem;
   padding: 1rem;
+  margin: 0;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
 }
 
-.preview svg {
+/* Drawing | height, then width and the scale bar under the drawing. */
+.measured {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.375rem 0.5rem;
+}
+
+.drawing {
+  position: relative;
+}
+
+#preview-svg svg {
   display: block;
   width: 100%;
   height: auto;
+}
+
+/* Same viewBox as the Stencil, laid exactly over it. */
+.thin-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.thin-overlay rect {
+  fill: rgb(220 38 38 / 0.18);
+  stroke: var(--thin);
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+}
+
+/* A dimension line with end ticks and its label in the middle. */
+.dim {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  white-space: nowrap;
+}
+
+.dim::before,
+.dim::after {
+  content: '';
+  flex: 1;
+  border: 0 solid var(--paper-muted);
+}
+
+.dim-width {
+  grid-column: 1;
+}
+
+.dim-width::before,
+.dim-width::after {
+  height: 0.5rem;
+  border-top-width: 1px;
+  margin-top: 0.5rem;
+}
+
+.dim-width::before {
+  border-left-width: 1px;
+}
+
+.dim-width::after {
+  border-right-width: 1px;
+}
+
+.dim-height {
+  grid-column: 2;
+  grid-row: 1;
+  flex-direction: column;
+}
+
+.dim-height > span {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.dim-height::before,
+.dim-height::after {
+  width: 0.5rem;
+  border-right-width: 1px;
+  margin-right: 0.5rem;
+  align-self: flex-end;
+}
+
+.dim-height::before {
+  border-top-width: 1px;
+}
+
+.dim-height::after {
+  border-bottom-width: 1px;
+}
+
+.scale {
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.scale-bar {
+  height: 0.375rem;
+  background: var(--paper-ink);
+  border-radius: 1px;
+}
+
+.thin-note {
+  color: var(--error);
+  margin: 0.75rem 0 0;
+}
+
+.thin-note::before {
+  content: '';
+  display: inline-block;
+  width: 0.75em;
+  height: 0.75em;
+  margin-right: 0.5em;
+  border: 1.5px solid currentColor;
+  border-radius: 0.2em;
+  vertical-align: -0.05em;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.875rem;
+  margin: 0.5rem 0 0;
+}
+
+.hint:empty {
+  display: none;
 }
 
 .design fieldset {

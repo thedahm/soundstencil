@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { tighten } from '../src/core/selection';
 import { decodeSource } from '../src/core/source';
 import { barsStencil, lineStencil, stencil } from '../src/core/stencil';
-import { isSimple } from './fixtures/polygon';
+import { thinSpots } from '../src/core/thin-spots';
+import { area, isSimple } from './fixtures/polygon';
 import { wavDecoder } from './fixtures/wav';
 
 const bark = async () => {
@@ -98,6 +99,30 @@ describe('lineStencil', () => {
     // Smoothing 0: every control point sits on an anchor, so 30 Buckets + lead-out.
     expect(editable.svg).toMatch(/stroke-width="2"/);
     expect(editable.svg.match(/C/g)).toHaveLength(31);
+  });
+});
+
+describe('Thin Spots in a Stencil', () => {
+  it('finds the gap between each pair of bars at defaults: 0.67 mm, under 1 mm', async () => {
+    const { samples, selection } = await bark();
+    const spots = thinSpots(barsStencil(samples, selection).ink);
+    expect(spots).toHaveLength(47);
+    expect(spots.every((s) => s.kind === 'gap')).toBe(true);
+  });
+
+  it('finds none in bars with wider gaps', async () => {
+    const { samples, selection } = await bark();
+    const { ink } = barsStencil(samples, selection, { count: 30, fillRatio: 0.3, printSize: { widthMm: 100, heightMm: 25 } });
+    expect(thinSpots(ink)).toEqual([]);
+  });
+
+  it('finds a whole Line thinner than the threshold', async () => {
+    const { samples, selection } = await bark();
+    const spots = thinSpots(lineStencil(samples, selection, { thicknessMm: 0.5 }).ink);
+    expect(spots.length).toBeGreaterThan(0);
+    const inked = spots.filter((s) => s.kind === 'ink');
+    // At least the 80 mm the line runs across, 0.5 mm wide.
+    expect(inked.reduce((sum, s) => sum + s.areaMm2, 0)).toBeGreaterThan(40);
   });
 });
 

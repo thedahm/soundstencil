@@ -27,3 +27,7 @@ Naive offsetting (push each point ±thickness/2 along its normal) folds over its
 - `clipper2-js` 1.2.4 is not quite dependency-free. It depends on `tslib`, which the bundle never imports. It also declares Angular 15 as a peer, though no code uses it. `.npmrc` sets `legacy-peer-deps=true` so npm doesn't install Angular, rxjs and zone.js alongside it. The built bundle has no imports.
 - This port's whole-polyline open offset gets sharp concave turns wrong. It winds part of the stroke negatively, and its Positive-fill union then drops that part. The result is holes inside the stroke, or an outline split at every spike. So each polyline segment is offset on its own as a round-capped capsule, and Clipper unions them. The shape is the same: every point within half the thickness of the line, which is what round joins with round caps give. The only cost is speed, about 100 ms at the defaults. The UI redraws the preview at most once a frame.
 - Its `executePolytree` swallows an internal error and returns nothing, so the code uses `execute`.
+
+## Amendment (2026-09-28, issue #7)
+
+- The port's closed-polygon offset is broken too: every join type drops corners and comes out short, even for a plain square. Rebuilding erosion and dilation from edge capsules works but takes seconds on a Line outline. So Thin Spot detection doesn't use Clipper: it rasterizes the ink (at most 400k cells, about 0.075 mm at the default Print Size) and opens and closes it with exact distance transforms, in tens of milliseconds.
